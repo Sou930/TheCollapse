@@ -6,8 +6,10 @@
 'use strict';
 
 /* ── 設定 ────────────────────────────────────────────────── */
-const WS_PORT = 3001;
-const WS_URL  = `ws://${location.hostname}:${WS_PORT}`;
+/* 同一HTTPサーバーに /chat-ws として組み込み済み（index.js + chatserver.js）。
+   ホスティング環境でも単一ポートで動作する。 */
+const WS_PATH = '/chat-ws';
+const WS_URL  = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${WS_PATH}`;
 
 /* 絵文字カテゴリ */
 const EMOJI_CATEGORIES = {
@@ -186,6 +188,25 @@ function handleWsMessage(msg) {
       showToast(msg.text || 'エラーが発生しました', 'error');
       break;
 
+    case 'room_history': {
+      const room = getRoom(msg.roomId);
+      if (!room) break;
+      room.messages = (msg.messages || []).map(normalizeMsg);
+      if (msg.roomId === state.activeRoomId) renderMessages(room);
+      break;
+    }
+
+    case 'message_deleted': {
+      const room = getRoom(msg.roomId);
+      if (!room) break;
+      const idx = room.messages.findIndex(m => String(m.id) === String(msg.messageId));
+      if (idx !== -1) {
+        room.messages.splice(idx, 1);
+        if (msg.roomId === state.activeRoomId) renderMessages(room);
+      }
+      break;
+    }
+
     case 'system': {
       const room = getRoom(msg.roomId);
       if (!room) break;
@@ -217,7 +238,7 @@ function initLocalFallback() {
     {
       id: 'general', name: '# general', type: 'group', emoji: '💬',
       members: [state.selfUser?.username || 'You'],
-      messages: [{ id:1, sender:'System', text:'サーバーに接続できません。chat-server.js を起動してください。', time:'--:--', timeFull:'--/-- --:--', own:false, type:'system' }],
+      messages: [{ id:1, sender:'System', text:'サーバーに接続できません。再接続を試みています...', time:'--:--', timeFull:'--/-- --:--', own:false, type:'system' }],
       unread: 0,
     },
     { id: 'game-talk', name: '# game-talk', type: 'group', emoji: '🎮', members: [], messages: [], unread: 0 },
@@ -673,7 +694,11 @@ function deleteMsg(msgId) {
   const idx = room.messages.findIndex(m => String(m.id) === String(msgId));
   if (idx === -1) return;
   const msg = room.messages[idx];
-  if (!isSelf(msg.sender)) return;
+  const admin = state.selfUser && state.selfUser.admin === true;
+  if (!isSelf(msg.sender) && !admin) return;
+  // サーバーに削除を通知（サーバーが全員にブロードキャスト）
+  wsSend({ type: 'delete_message', roomId: state.activeRoomId, messageId: msgId });
+  // 楽観的にローカルでも削除
   room.messages.splice(idx, 1);
   const el = document.getElementById(`msg-${msgId}`);
   if (el) el.remove();
