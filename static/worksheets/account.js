@@ -70,32 +70,76 @@ const TC_ACCOUNT = (() => {
     return { username, history: [], bookmarks: [], tabs: [], tabCounter: 0, searchEngine: 'google', bg: null };
   }
 
-  async function _writeData(username, data) {
+  // 書き込み用内部ヘルパー
+  async function _writeDataImmediate(username, data) {
     // まず ./data/<username>.json へのファイル書き込みを試みる
+    let serverOk = false;
     try {
       const res = await fetch(_dataPath(username), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data, null, 2),
+        keepalive: true, // ページ離脱時も送信完了を保証
       });
-      if (res.ok) return; // ファイル書き込み成功
+      if (res.ok) serverOk = true;
     } catch {}
 
-    // フォールバック: IndexedDB へ保存
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open('tc_userdata', 1);
-      req.onupgradeneeded = e => {
-        e.target.result.createObjectStore('files', { keyPath: 'username' });
-      };
-      req.onsuccess = e => {
-        const db = e.target.result;
-        const tx = db.transaction('files', 'readwrite');
-        tx.objectStore('files').put({ username, data: JSON.stringify(data) });
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => { db.close(); reject(tx.error); };
-      };
-      req.onerror = () => reject(req.error);
-    });
+    // IndexedDB へも常にバックアップ（オフライン対策）
+    try {
+      await new Promise((resolve, reject) => {
+        const req = indexedDB.open('tc_userdata', 1);
+        req.onupgradeneeded = e => {
+          e.target.result.createObjectStore('files', { keyPath: 'username' });
+        };
+        req.onsuccess = e => {
+          const db = e.target.result;
+          const tx = db.transaction('files', 'readwrite');
+          tx.objectStore('files').put({ username, data: JSON.stringify(data) });
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { db.close(); reject(tx.error); };
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch {}
+    return serverOk;
+  }
+
+  // デバウンス書き込み（500ms）。同じユーザの連続書きをまとめる
+  const _pendingWrites = new Map(); // username -> { data, timer, promise, resolve }
+  function _writeData(username, data, { immediate = false } = {}) {
+    if (immediate) {
+      const p = _pendingWrites.get(username);
+      if (p) { clearTimeout(p.timer); _pendingWrites.delete(username); }
+      return _writeDataImmediate(username, data);
+    }
+    let entry = _pendingWrites.get(username);
+    if (entry) {
+      entry.data = data;
+      clearTimeout(entry.timer);
+    } else {
+      entry = { data, timer: null, promise: null, resolve: null };
+      entry.promise = new Promise(r => { entry.resolve = r; });
+      _pendingWrites.set(username, entry);
+    }
+    entry.timer = setTimeout(async () => {
+      const e = _pendingWrites.get(username);
+      if (!e) return;
+      _pendingWrites.delete(username);
+      const ok = await _writeDataImmediate(username, e.data);
+      e.resolve(ok);
+    }, 500);
+    return entry.promise;
+  }
+
+  // ペンディング書き込みを即時実行（ページ離脱前）
+  async function _flushPendingWrites() {
+    const entries = [..._pendingWrites.entries()];
+    _pendingWrites.clear();
+    for (const [username, e] of entries) {
+      clearTimeout(e.timer);
+      const ok = await _writeDataImmediate(username, e.data);
+      e.resolve(ok);
+    }
   }
 
   async function _readIDB(username) {
@@ -468,7 +512,69 @@ const TC_ACCOUNT = (() => {
         console.warn('[TC_ACCOUNT] restoreCookies failed:', e);
       }
     },
+
+    // ペンディング書き込みを即時実行（ログアウト/ページ離脱時等）
+    async flush() {
+      await _flushPendingWrites();
+    },
+
+    // 外部からの履歴追加（ログインユーザのファイルに直接追加）
+    async appendHistoryEntry(entry) {
+      if (!_current) {
+        const cur = GUEST.getHistory();
+        cur.unshift(entry);
+        GUEST.saveHistory(cur.slice(0, 500));
+        return;
+      }
+      const d = await _getData(_current.username);
+      d.history = d.history || [];
+      // 連続重複を防ぐ
+      const last = d.history[0];
+      if (last && last.url === entry.url && (Date.now() - last.time) < 5000) return;
+      d.history.unshift(entry);
+      if (d.history.length > 500) d.history = d.history.slice(0, 500);
+      await _writeData(_current.username, d);
+    },
   };
+
+  // ── 自動保存 ─────────────────────────────────
+  // ページ離脱時（pagehide / beforeunload）に、
+  //  - 未書き込みデータをフラッシュ
+  //  - UV Cookie を最終保存（アカウントに紐付）
+  if (typeof window !== 'undefined') {
+    const _finalSave = async () => {
+      try {
+        if (_current) {
+          // UV Cookie を積み込む（書き込みは flush で確実に実行）
+          try {
+            const cookies = await _readUVCookiesFromIDB();
+            const d = await _getData(_current.username);
+            d.uvCookies = cookies;
+            await _writeData(_current.username, d, { immediate: true });
+          } catch {}
+        }
+        await _flushPendingWrites();
+      } catch (e) {
+        console.warn('[TC_ACCOUNT] finalSave error:', e);
+      }
+    };
+    window.addEventListener('pagehide', _finalSave);
+    window.addEventListener('beforeunload', () => {
+      // 同期 sendBeacon 相当として keepalive fetch を利用するため、最後の flush を必ず発火
+      _flushPendingWrites();
+    });
+    // 定期的に UV Cookie をアカウントに同期（30秒ごと）
+    setInterval(async () => {
+      if (!_current) return;
+      try {
+        const cookies = await _readUVCookiesFromIDB();
+        if (!cookies || cookies.length === 0) return;
+        const d = await _getData(_current.username);
+        d.uvCookies = cookies;
+        await _writeData(_current.username, d);
+      } catch {}
+    }, 30000);
+  }
 
   return API;
 })();
