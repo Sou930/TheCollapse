@@ -1,0 +1,1126 @@
+/* ============================================================
+   chat.css — TheCollapse Chat (Discord Theme)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=gg+Sans:wght@400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* Discord カラーパレット */
+  --bg:              #313338;   /* メインコンテンツ背景 */
+  --sidebar-bg:      #2b2d31;   /* サイドバー背景 */
+  --server-bg:       #1e1f22;   /* サーバーリスト背景 */
+  --surface:         #383a40;   /* ホバー/選択状態 */
+  --surface2:        #404249;   /* 入力欄 */
+  --channel-active:  #404249;   /* アクティブチャンネル */
+  --header-bg:       #313338;
+  --border:          #1e1f22;
+  --text:            #dbdee1;
+  --text-muted:      #80848e;
+  --text-header:     #f2f3f5;
+  --accent:          #5865f2;   /* Discord Blurple */
+  --accent-hover:    #4752c4;
+  --online:          #23a55a;
+  --idle:            #f0b232;
+  --dnd:             #f23f43;
+  --mention:         #f23f43;
+  --channel-hover:   #35373c;
+  --msg-hover:       #2e3035;
+  --unread:          #f2f3f5;
+  --nav-h:           48px;
+  --sidebar-w:       240px;
+  --members-w:       240px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'gg sans', 'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: 16px;
+}
+
+/* ── ナビ (Discordではチャンネルヘッダーに統合) ──────────── */
+#main-nav {
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--server-bg);
+  flex-shrink: 0;
+  z-index: 100;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+}
+
+.nav-left { display: flex; align-items: center; gap: 8px; }
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-header);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.nav-logo svg { color: var(--accent); }
+
+.version-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(88,101,242,0.15);
+  border: 1px solid rgba(88,101,242,0.3);
+  border-radius: 4px;
+  padding: 2px 6px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.nav-right { display: flex; align-items: center; gap: 2px; }
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.1s, background 0.1s;
+}
+.nav-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.nav-btn.active { color: var(--text-header); background: rgba(255,255,255,0.1); }
+
+/* WebSocket ステータス */
+.ws-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+.ws-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background 0.3s;
+}
+.ws-dot.connected  { background: var(--online); box-shadow: 0 0 0 3px rgba(35,165,90,0.2); }
+.ws-dot.connecting { background: var(--idle); }
+.ws-dot.error      { background: var(--dnd); }
+
+/* ── ログインゲート ─────────────────────────────────────── */
+#login-gate {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.login-gate-card {
+  text-align: center;
+  padding: 40px 32px;
+  background: var(--sidebar-bg);
+  border-radius: 8px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.login-gate-icon {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(88,101,242,0.4);
+}
+
+.login-gate-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-header);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.login-gate-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.login-gate-btn {
+  display: inline-block;
+  padding: 10px 24px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px rgba(88,101,242,0.35);
+}
+.login-gate-btn:hover { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(88,101,242,0.5); }
+
+/* ── レイアウト ─────────────────────────────────────────── */
+#chat-app { flex: 1; overflow: hidden; }
+
+.chat-layout {
+  display: flex;
+  height: 100%;
+}
+
+/* ── サイドバー (Discordスタイル) ───────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar-bg);
+  overflow: hidden;
+}
+
+/* サーバー名ヘッダー */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 48px;
+  border-bottom: 1px solid rgba(0,0,0,0.2);
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+}
+.sidebar-header:hover { background: var(--channel-hover); }
+
+.sidebar-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--server-bg);
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: var(--text-muted);
+  flex: 1;
+}
+.sidebar-search-wrap input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--text);
+  font-family: inherit;
+}
+.sidebar-search-wrap input::placeholder { color: var(--text-muted); }
+
+.new-room-btn {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.1s, background 0.1s;
+  margin-left: 4px;
+}
+.new-room-btn:hover { color: var(--text); background: var(--surface); }
+
+#room-list { flex: 1; overflow-y: auto; padding: 8px 0 4px; }
+#room-list::-webkit-scrollbar { width: 4px; }
+#room-list::-webkit-scrollbar-track { background: transparent; }
+#room-list::-webkit-scrollbar-thumb { background: var(--server-bg); border-radius: 4px; }
+#room-list:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.4); }
+
+/* セクションラベル (Discord: CHANNELS) */
+.sidebar-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 16px 8px 4px 16px;
+  cursor: pointer;
+  transition: color 0.1s;
+}
+.sidebar-section-label:hover { color: var(--text); }
+
+/* チャンネルアイテム (Discordスタイル) */
+.room-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 1px 8px;
+  color: var(--text-muted);
+  transition: background 0.1s, color 0.1s;
+  position: relative;
+}
+.room-item:hover { background: var(--channel-hover); color: var(--text); }
+.room-item.active {
+  background: var(--channel-active);
+  color: var(--text-header);
+}
+.room-item.unread-item { color: var(--unread); font-weight: 600; }
+.room-item.unread-item::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 8px;
+  background: var(--unread);
+  border-radius: 0 4px 4px 0;
+}
+
+/* Discordスタイルのチャンネルアバター（ハッシュ記号） */
+.room-avatar {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  color: inherit;
+}
+.room-avatar.group {
+  background: none;
+  border: none;
+  border-radius: 0;
+  font-size: 15px;
+  width: 18px; height: 18px;
+}
+/* DMアバター */
+.room-avatar.dm-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5865f2, #a55bff);
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.online-dot {
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 10px; height: 10px;
+  background: var(--online);
+  border-radius: 50%;
+  border: 2px solid var(--sidebar-bg);
+}
+
+.room-info { flex: 1; overflow: hidden; }
+.room-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+/* Discordでプレビューは通常非表示、ホバー時にのみ軽く */
+.room-preview {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+  display: none;
+}
+
+.room-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.room-time { font-size: 10px; color: var(--text-muted); display: none; }
+.room-badge {
+  background: var(--mention);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0 5px;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* サイドバーフッター（自分のアカウント）Discordスタイル */
+.sidebar-footer {
+  border-top: none;
+  padding: 0 8px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #232428;
+  flex-shrink: 0;
+}
+.self-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #a55bff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+}
+.self-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.self-avatar::after {
+  content: '';
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 10px; height: 10px;
+  background: var(--online);
+  border-radius: 50%;
+  border: 2px solid #232428;
+}
+.self-info { flex: 1; overflow: hidden; }
+.self-name { font-size: 13px; font-weight: 600; color: var(--text-header); line-height: 1.2; }
+.self-status { font-size: 11px; color: var(--text-muted); }
+
+/* フッターアイコンボタン */
+.self-actions {
+  display: flex;
+  gap: 2px;
+}
+.self-action-btn {
+  width: 32px; height: 32px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+.self-action-btn:hover { color: var(--text); background: var(--surface); }
+
+/* ── チャットメイン ─────────────────────────────────────── */
+.chat-main-wrap {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg);
+}
+
+/* 空状態 */
+#empty-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-muted);
+  background: var(--bg);
+}
+.empty-icon {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: var(--sidebar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.empty-title { font-size: 20px; font-weight: 700; color: var(--text-header); }
+.empty-desc { font-size: 14px; }
+
+/* チャット本体 */
+#chat-main {
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* チャンネルヘッダー */
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 48px;
+  border-bottom: 1px solid rgba(0,0,0,0.2);
+  background: var(--bg);
+  flex-shrink: 0;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  z-index: 10;
+}
+.chat-header-left { display: flex; align-items: center; gap: 8px; }
+.chat-header-avatar {
+  width: 24px; height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--text-muted);
+}
+/* チャンネル名 */
+.chat-header-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-header);
+}
+/* チャンネルトピック */
+.chat-header-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 0;
+  border-left: 1px solid rgba(255,255,255,0.1);
+  padding-left: 8px;
+  margin-left: 4px;
+}
+
+.chat-header-actions { display: flex; align-items: center; gap: 4px; }
+.hdr-btn {
+  width: 32px; height: 32px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+.hdr-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.hdr-btn.active { color: var(--text-header); }
+
+/* ── メッセージエリア (Discordスタイル) ──────────────────── */
+.messages-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  scroll-behavior: smooth;
+}
+.messages-area::-webkit-scrollbar { width: 8px; }
+.messages-area::-webkit-scrollbar-track { background: transparent; }
+.messages-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.4); border-radius: 4px; border: 2px solid var(--bg); }
+
+/* 日付区切り */
+.date-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 16px 16px 8px;
+}
+.date-divider::before, .date-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+}
+
+/* Discordスタイルのメッセージ（フラット、左揃え） */
+.msg-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 2px 16px;
+  transition: background 0.05s;
+  animation: fadeIn 0.1s ease;
+  position: relative;
+}
+.msg-group:hover { background: var(--msg-hover); }
+.msg-group.own { flex-direction: row; }
+
+/* 連続メッセージ（アバターなし） */
+.msg-group.compact {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+.msg-group.compact .msg-avatar-wrap { width: 40px; }
+.msg-group.compact .compact-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  font-size: 10px;
+  color: transparent;
+  flex-shrink: 0;
+  height: 22px;
+}
+.msg-group.compact:hover .compact-time { color: var(--text-muted); }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* 新着メッセージアニメーション */
+.msg-group.new-msg {
+  animation: slideInMsg 0.15s ease;
+}
+@keyframes slideInMsg {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* アバター部分 */
+.msg-avatar-wrap {
+  width: 40px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.msg-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5865f2, #a55bff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+.msg-avatar:hover { opacity: 0.85; }
+.msg-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.msg-avatar.own-avatar { background: linear-gradient(135deg, #23a55a, #06c4d9); }
+
+.msg-body {
+  flex: 1;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+/* ヘッダー行 (送信者名 + 時刻) */
+.msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.msg-sender {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-header);
+  cursor: pointer;
+  line-height: 1.2;
+}
+.msg-sender:hover { text-decoration: underline; }
+.msg-sender.own-sender { color: #23a55a; }
+
+.msg-timestamp {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* メッセージ本文 */
+.msg-bubble {
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text);
+  word-break: break-word;
+  white-space: pre-wrap;
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* ownは青くしない（Discord風にする） */
+.msg-group.own .msg-bubble { color: var(--text); }
+
+/* 返信などのリアクション */
+.msg-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.reaction {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(88,101,242,0.1);
+  border: 1px solid rgba(88,101,242,0.3);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.reaction:hover { background: rgba(88,101,242,0.2); }
+.reaction-count { font-size: 12px; color: var(--text-muted); }
+
+/* ホバー時アクションバー */
+.msg-actions {
+  position: absolute;
+  right: 16px;
+  top: -14px;
+  background: var(--sidebar-bg);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  display: none;
+  gap: 2px;
+  padding: 2px 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 5;
+}
+.msg-group:hover .msg-actions { display: flex; }
+.msg-action-btn {
+  width: 28px; height: 28px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: color 0.1s, background 0.1s;
+}
+.msg-action-btn:hover { color: var(--text); background: var(--surface); }
+
+/* システムメッセージ */
+.msg-system {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 4px 16px 4px 56px;
+  font-style: italic;
+}
+
+/* ── タイピングインジケータ ─────────────────────────────── */
+.typing-indicator {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.typing-dots span {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: discordTyping 1.4s infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes discordTyping {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+/* ── 入力エリア (Discordスタイル) ───────────────────────── */
+.input-area {
+  padding: 0 16px 24px;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.input-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 11px 12px 11px 16px;
+  transition: background 0.1s;
+  position: relative;
+}
+
+/* アップロードボタン */
+.input-action-btn {
+  width: 32px; height: 22px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.1s;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+.input-action-btn:hover { color: var(--text); }
+
+.emoji-wrap { position: relative; }
+.emoji-toggle {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.1s;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.emoji-toggle:hover { color: #f0b232; }
+
+/* 絵文字ピッカー */
+.emoji-picker {
+  position: absolute;
+  bottom: 44px;
+  left: -4px;
+  background: var(--sidebar-bg);
+  border: 1px solid rgba(0,0,0,0.3);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  width: 268px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px) scale(0.97);
+  transition: opacity 0.12s, transform 0.12s;
+}
+.emoji-picker.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+/* 絵文字カテゴリ */
+.emoji-category {
+  width: 100%;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 8px 4px 4px;
+}
+
+.emoji-btn {
+  width: 36px; height: 36px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.08s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.emoji-btn:hover { background: var(--surface); }
+
+#msg-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 15px;
+  color: var(--text);
+  font-family: inherit;
+  line-height: 1.4;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 0;
+}
+#msg-input::placeholder { color: var(--text-muted); }
+#msg-input::-webkit-scrollbar { display: none; }
+
+.send-btn {
+  width: 32px; height: 28px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 4px;
+  transition: color 0.1s;
+}
+.send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.send-btn:not(:disabled) { color: var(--accent); }
+.send-btn:not(:disabled):hover { color: #fff; background: var(--accent); border-radius: 4px; }
+
+/* ── メンバーパネル (Discordスタイル) ───────────────────── */
+.members-panel {
+  width: 0;
+  overflow: hidden;
+  background: var(--sidebar-bg);
+  transition: width 0.2s ease;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.members-panel.open {
+  width: var(--members-w);
+  border-left: 1px solid rgba(0,0,0,0.2);
+}
+.members-panel::-webkit-scrollbar { width: 4px; }
+.members-panel::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.4); border-radius: 4px; }
+
+.members-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 24px 8px 8px 16px;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin: 1px 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.member-item:hover { background: var(--channel-hover); }
+
+.member-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5865f2, #a55bff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  position: relative;
+  overflow: visible;
+}
+.member-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.member-avatar .online-dot { border-color: var(--sidebar-bg); }
+
+.member-name { font-size: 14px; color: var(--text); font-weight: 500; }
+
+/* ── 接続バナー ─────────────────────────────────────────── */
+.conn-banner {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #232428;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 12px 20px;
+  font-size: 14px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 200;
+  animation: fadeIn 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.conn-banner.error { border-color: var(--dnd); color: var(--dnd); }
+
+/* ── ブーストバー（装飾用） ─────────────────────────────── */
+.channel-start-banner {
+  padding: 16px 16px 8px;
+  margin-top: auto;
+}
+.channel-start-icon {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #a55bff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  margin-bottom: 16px;
+}
+.channel-start-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-header);
+  margin-bottom: 8px;
+}
+.channel-start-desc {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* ── メンション・ハイライト ─────────────────────────────── */
+.msg-mention {
+  background: rgba(242,63,67,0.1);
+}
+.mention-tag {
+  background: rgba(88,101,242,0.3);
+  color: #bcc0ff;
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.mention-tag:hover { background: var(--accent); color: #fff; }
+
+/* ── コードブロック ─────────────────────────────────────── */
+.code-inline {
+  background: rgba(0,0,0,0.3);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  color: #e3e5e8;
+}
+
+/* ── スクロールトゥボタン ───────────────────────────────── */
+.scroll-to-bottom {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  width: 36px; height: 36px;
+  background: var(--sidebar-bg);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  transition: color 0.1s, background 0.1s;
+  z-index: 10;
+}
+.scroll-to-bottom:hover { color: var(--text); background: var(--surface); }
+
+/* ── ツールチップ ───────────────────────────────────────── */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #111214;
+  color: var(--text-header);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  z-index: 100;
+}
+
+/* ── チャンネルウェルカムメッセージ ─────────────────────── */
+.welcome-msg {
+  padding: 32px 16px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 16px;
+}
+.welcome-icon {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #7289da);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin-bottom: 20px;
+}
+.welcome-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-header);
+  margin-bottom: 8px;
+}
+.welcome-desc {
+  font-size: 15px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ── レスポンシブ ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar { width: 200px; }
+  :root { --sidebar-w: 200px; }
+  .chat-header-sub { display: none; }
+  .members-panel.open { width: 180px; }
+}
+@media (max-width: 600px) {
+  .sidebar { display: none; }
+  .members-panel { display: none; }
+}

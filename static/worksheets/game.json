@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "games": [
+    {
+      "id": "2048",
+      "title": "2048",
+      "description": "数字を合わせて2048を目指すパズルゲーム",
+      "category": "puzzle",
+      "tags": ["puzzle", "numbers", "casual"],
+      "src": "game/2048.html",
+      "thumbnail": null,
+      "color": "#5b8fff",
+      "featured": true
+    },
+    {
+      "id": "snake",
+      "title": "Snake",
+      "description": "クラシックなスネークゲーム。壁と自分に当たらないように！",
+      "category": "arcade",
+      "tags": ["arcade", "classic", "retro"],
+      "src": "game/snake.html",
+      "thumbnail": null,
+      "color": "#3fcf8e",
+      "featured": true
+    },
+    {
+      "id": "tetris",
+      "title": "Tetris",
+      "description": "落ちてくるブロックを並べてラインを消せ",
+      "category": "puzzle",
+      "tags": ["puzzle", "classic", "arcade"],
+      "src": "game/tetris.html",
+      "thumbnail": null,
+      "color": "#a55bff",
+      "featured": true
+    },
+    {
+      "id": "minesweeper",
+      "title": "Minesweeper",
+      "description": "地雷を避けながら全マスを開けよう",
+      "category": "puzzle",
+      "tags": ["puzzle", "strategy", "classic"],
+      "src": "game/minesweeper.html",
+      "thumbnail": null,
+      "color": "#ff6b6b",
+      "featured": false
+    },
+    {
+      "id": "pong",
+      "title": "Pong",
+      "description": "古典的な2人用ピンポンゲーム",
+      "category": "arcade",
+      "tags": ["arcade", "2player", "retro"],
+      "src": "game/pong.html",
+      "thumbnail": null,
+      "color": "#ffd166",
+      "featured": false
+    },
+    {
+      "id": "flappy",
+      "title": "Flappy Bird",
+      "description": "障害物を避けてどこまで飛べるか",
+      "category": "arcade",
+      "tags": ["arcade", "casual", "endless"],
+      "src": "game/flappy.html",
+      "thumbnail": null,
+      "color": "#06c4d9",
+      "featured": false
+    }
+  ],
+  "categories": [
+    { "id": "all",    "label": "All" },
+    { "id": "puzzle", "label": "Puzzle" },
+    { "id": "arcade", "label": "Arcade" }
+  ]
+}

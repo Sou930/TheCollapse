@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TheCollapse - Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:           #0e1117;
+  --surface:      #161b27;
+  --surface2:     #1c2233;
+  --border:       #252d3d;
+  --border-hover: #3a4560;
+  --text:         #e8ecf3;
+  --muted:        #8892a4;
+  --accent:       #5b8fff;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, #1e2535 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+  font-family: 'Inter', sans-serif;
+  color: var(--text);
+  display: flex; flex-direction: column;
+}
+
+/* ─── Nav ─────────────────────────────────────── */
+nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 56px;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(14,17,23,0.85); backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(37,45,61,0.5);
+}
+.nav-left { display: flex; align-items: center; gap: 10px; }
+.nav-logo {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 17px; font-weight: 700; color: var(--text);
+  text-decoration: none; letter-spacing: -0.3px;
+}
+.version-badge {
+  font-size: 11px; font-weight: 500; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 8px;
+}
+.nav-right { display: flex; align-items: center; gap: 4px; }
+.nav-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: var(--muted);
+  text-decoration: none; background: none; border: none;
+  cursor: pointer; transition: color .15s, background .15s;
+  font-family: 'Inter', sans-serif;
+}
+.nav-btn:hover, .nav-btn.active { color: var(--text); background: var(--surface); }
+
+/* ─── Main ─────────────────────────────────────── */
+main { margin-top: 56px; padding: 44px 44px 80px; flex: 1; }
+
+.page-header { margin-bottom: 36px; }
+.page-title  { font-size: 30px; font-weight: 700; letter-spacing: -.6px; }
+.page-subtitle { font-size: 14px; color: var(--muted); margin-top: 5px; }
+
+/* ─── Controls ─────────────────────────────────── */
+.controls {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 30px; flex-wrap: wrap;
+}
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0 14px; height: 40px;
+  flex: 1; min-width: 200px; max-width: 320px;
+  transition: border-color .15s;
+}
+.search-box:focus-within { border-color: var(--border-hover); }
+.search-box svg { color: var(--muted); flex-shrink: 0; }
+.search-box input {
+  background: none; border: none; outline: none;
+  color: var(--text); font-family: 'Inter', sans-serif;
+  font-size: 14px; width: 100%;
+}
+.search-box input::placeholder { color: var(--muted); }
+
+.cat-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.cat-tab {
+  padding: 6px 16px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border);
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.cat-tab:hover { color: var(--text); border-color: var(--border-hover); }
+.cat-tab.active {
+  color: var(--accent); border-color: var(--accent);
+  background: rgba(91,143,255,.09);
+}
+
+/* ─── Section label ─────────────────────────────── */
+.section-label {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .8px;
+  color: var(--muted); margin-bottom: 18px;
+}
+
+/* ─── Grid ──────────────────────────────────────── */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+/* ─── Card ──────────────────────────────────────── */
+.game-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden;
+  text-decoration: none; display: block;
+  transition: border-color .2s, transform .15s, box-shadow .2s;
+}
+.game-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.35);
+}
+
+.card-thumb {
+  height: 148px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.card-thumb-bg {
+  position: absolute; inset: 0;
+  opacity: .14; transition: opacity .2s;
+}
+.game-card:hover .card-thumb-bg { opacity: .22; }
+.card-thumb-icon {
+  width: 62px; height: 62px; border-radius: 15px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; position: relative; z-index: 1;
+  box-shadow: 0 4px 20px rgba(0,0,0,.35);
+}
+
+.card-body { padding: 18px 20px 20px; }
+.card-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+.card-desc  { font-size: 13px; color: var(--muted); line-height: 1.55; margin-bottom: 16px; }
+.card-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.card-tag {
+  font-size: 11px; padding: 3px 9px; border-radius: 5px;
+  background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+}
+.play-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 16px; background: var(--accent); color: #fff;
+  border-radius: 8px; font-size: 13px; font-weight: 600;
+  white-space: nowrap; transition: opacity .15s;
+}
+.game-card:hover .play-btn { opacity: .88; }
+
+/* ─── Empty ──────────────────────────────────────── */
+.empty-state {
+  text-align: center; padding: 70px 20px;
+  color: var(--muted); display: none;
+}
+.empty-state svg { margin-bottom: 16px; opacity: .35; }
+.empty-state p   { font-size: 15px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-left">
+    <a href="../index.html" class="nav-logo">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      TheCollapse
+    </a>
+    <span class="version-badge">v1.1</span>
+  </div>
+  <div class="nav-right">
+    <a href="../index.html" class="nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </a>
+    <a href="game.html" class="nav-btn active">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="16" cy="10" r="1" fill="currentColor"/><circle cx="18" cy="12" r="1" fill="currentColor"/></svg>
+      Game
+    </a>
+    <a href="chat.html" class="nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Chat
+    </a>
+    <a href="settings.html" class="nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Setting
+    </a>
+  </div>
+</nav>
+
+<main>
+  <div class="page-header">
+    <h1 class="page-title">Games</h1>
+    <p class="page-subtitle">ブラウザで遊べるゲーム集</p>
+  </div>
+
+  <div class="controls">
+    <div class="search-box">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="search-input" placeholder="Search games…" oninput="filterGames()">
+    </div>
+    <div class="cat-tabs" id="cat-tabs"></div>
+  </div>
+
+  <div class="section-label" id="section-label">ALL GAMES</div>
+  <div class="game-grid"    id="game-grid"></div>
+  <div class="empty-state"  id="empty-state">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+      <rect x="2" y="6" width="20" height="12" rx="2"/>
+      <path d="M6 12h4m-2-2v4"/>
+      <circle cx="16" cy="10" r="1" fill="currentColor"/>
+      <circle cx="18" cy="12" r="1" fill="currentColor"/>
+    </svg>
+    <p>ゲームが見つかりませんでした</p>
+  </div>
+</main>
+
+<script>
+const EMOJI = { puzzle: '🧩', arcade: '🕹️', default: '🎮' };
+let games = [], categories = [], activeCategory = 'all';
+
+async function loadGames() {
+  try {
+    const data = await fetch('game.json').then(r => r.json());
+    games      = data.games      || [];
+    categories = data.categories || [{ id: 'all', label: 'All' }];
+  } catch {
+    games = []; categories = [{ id: 'all', label: 'All' }];
+  }
+  renderTabs();
+  filterGames();
+}
+
+function renderTabs() {
+  document.getElementById('cat-tabs').innerHTML = categories.map(c => `
+    <button class="cat-tab${c.id === activeCategory ? ' active' : ''}"
+      onclick="setCategory('${c.id}')">${c.label}</button>`).join('');
+}
+
+function setCategory(id) {
+  activeCategory = id;
+  renderTabs();
+  filterGames();
+}
+
+function filterGames() {
+  const q = document.getElementById('search-input').value.toLowerCase().trim();
+  const list = games.filter(g =>
+    (activeCategory === 'all' || g.category === activeCategory) &&
+    (!q || g.title.toLowerCase().includes(q) || g.description.toLowerCase().includes(q))
+  );
+
+  document.getElementById('section-label').textContent =
+    (activeCategory === 'all' ? 'ALL' : activeCategory.toUpperCase()) + ' GAMES';
+
+  const grid  = document.getElementById('game-grid');
+  const empty = document.getElementById('empty-state');
+
+  if (!list.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  grid.innerHTML = list.map(renderCard).join('');
+}
+
+function renderCard(g) {
+  const emoji = EMOJI[g.category] || EMOJI.default;
+  const color = g.color || '#5b8fff';
+  const tags  = (g.tags || []).slice(0, 2)
+    .map(t => `<span class="card-tag">${t}</span>`).join('');
+
+  return `
+    <a class="game-card" href="play.html?id=${encodeURIComponent(g.id)}">
+      <div class="card-thumb">
+        <div class="card-thumb-bg" style="background:${color};"></div>
+        <div class="card-thumb-icon" style="background:${color}30;">${emoji}</div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${g.title}</div>
+        <div class="card-desc">${g.description}</div>
+        <div class="card-footer">
+          <div class="card-tags">${tags}</div>
+          <span class="play-btn">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Play
+          </span>
+        </div>
+      </div>
+    </a>`;
+}
+
+loadGames();
+</script>
+</body>
+</html>

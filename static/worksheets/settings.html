@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TheCollapse - Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0e1117;
+  --sidebar-bg: #0e1117;
+  --surface: #161b27;
+  --surface2: #1c2233;
+  --border: #252d3d;
+  --border-hover: #3a4560;
+  --text: #e8ecf3;
+  --muted: #8892a4;
+  --active-bg: #1e2a40;
+  --active-border: #2d3f5e;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--bg);
+  font-family: 'Inter', sans-serif;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ナビ */
+nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  height: 56px;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.nav-left { display: flex; align-items: center; gap: 10px; }
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.version-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.nav-right { display: flex; align-items: center; gap: 4px; }
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-btn:hover { color: var(--text); background: var(--surface); }
+.nav-btn.active { color: var(--text); border-bottom: 2px solid var(--text); border-radius: 0; }
+
+/* レイアウト */
+.layout {
+  display: flex;
+  margin-top: 56px;
+  min-height: calc(100vh - 56px);
+}
+
+/* サイドバー */
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  padding: 16px 12px;
+  border-right: 1px solid var(--border);
+  background-color: var(--sidebar-bg);
+  background-image: radial-gradient(circle, #1a2030 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+}
+
+.filter-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px 8px 34px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  margin-bottom: 12px;
+  position: relative;
+}
+.filter-input::placeholder { color: var(--muted); }
+.filter-input:focus { border-color: var(--border-hover); }
+
+.filter-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+.filter-wrap svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+.nav-item:hover { background: var(--surface); color: var(--text); }
+.nav-item.active {
+  background: var(--active-bg);
+  color: var(--text);
+  border: 1px solid var(--active-border);
+}
+
+/* コンテンツ */
+.content {
+  flex: 1;
+  padding: 32px 40px;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, #1a2030 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  overflow-y: auto;
+}
+
+.section-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+/* 設定カード */
+.setting-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  transition: border-color 0.15s;
+}
+.setting-card:hover { border-color: var(--border-hover); }
+.setting-card.disabled { opacity: 0.45; pointer-events: none; }
+
+.setting-info { flex: 1; }
+.setting-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.setting-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* トグル */
+.toggle {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 99px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle input:checked + .toggle-track { background: #3b5bdb; }
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle input:checked + .toggle-track::after { transform: translateX(22px); }
+
+/* セレクト */
+.styled-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 32px 8px 12px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238892a4' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  min-width: 180px;
+  transition: border-color 0.15s;
+}
+.styled-select:focus { border-color: var(--border-hover); }
+.styled-select option { background: #1c2233; }
+
+/* テキスト入力 */
+.styled-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  min-width: 200px;
+  transition: border-color 0.15s;
+}
+.styled-input:focus { border-color: var(--border-hover); }
+.styled-input::placeholder { color: var(--muted); }
+
+/* 保存ボタン */
+.save-btn {
+  background: #2d3f5e;
+  border: 1px solid #3a4f74;
+  border-radius: 7px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: background 0.15s, border-color 0.15s;
+  margin-top: 8px;
+}
+.save-btn:hover { background: #374b6e; border-color: #4a5f8a; }
+
+.setting-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* セクション区切り */
+.section-gap { height: 24px; }
+
+/* トースト */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border-hover);
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 14px;
+  color: var(--text);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 999;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ナビ -->
+<nav>
+  <div class="nav-left">
+    <a href="../index.html" class="nav-logo">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      TheCollapse
+    </a>
+    <span class="version-badge">v1.1</span>
+  </div>
+  <div class="nav-right">
+    <a href="../index.html" class="nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </a>
+    <a href="game.html" class="nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="16" cy="10" r="1" fill="currentColor"/><circle cx="18" cy="12" r="1" fill="currentColor"/></svg>
+      Game
+    </a>
+    <a href="chat.html" class="nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Chat
+    </a>
+    <a href="settings.html" class="nav-btn active">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Setting
+    </a>
+  </div>
+</nav>
+
+<div class="layout">
+  <!-- サイドバー -->
+  <aside class="sidebar">
+    <div class="filter-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="filter-input" placeholder="Filter settings" oninput="filterNav(this.value)">
+    </div>
+
+    <div class="nav-item active" onclick="showSection('privacy', this)" id="nav-privacy">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      ページ離脱確認
+    </div>
+    <div class="nav-item" onclick="showSection('search', this)" id="nav-search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      検索エンジン
+    </div>
+    <div class="nav-item" onclick="showSection('cloak', this)" id="nav-cloak">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+      タブ偽装
+    </div>
+    <div class="nav-item" onclick="showSection('advanced', this)" id="nav-advanced">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      パニックボタン
+    </div>
+  </aside>
+
+  <!-- コンテンツ -->
+  <main class="content">
+
+    <!-- ページ離脱確認 -->
+    <div id="section-privacy" class="section">
+      <div class="section-title">Privacy</div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">ページ離脱時に確認を表示</div>
+          <div class="setting-desc">ページを離れるときに確認ダイアログを表示します。</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="onbeforeunload" onchange="saveToggle('onbeforeunload', this.checked)">
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+    </div>
+
+    <!-- 検索エンジン -->
+    <div id="section-search" class="section" style="display:none">
+      <div class="section-title">検索エンジン</div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">検索エンジン</div>
+          <div class="setting-desc">URLでない入力をした際に使用する検索エンジンを選択します。</div>
+        </div>
+        <div class="setting-control">
+          <select class="styled-select" id="searchengine" onchange="saveSearchEngine()">
+            <option value="bing">Bing</option>
+            <option value="google">Google</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- タブ偽装 -->
+    <div id="section-cloak" class="section" style="display:none">
+      <div class="section-title">タブ偽装</div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">ファビコン</div>
+          <div class="setting-desc">ブラウザタブに表示されるアイコンを変更します。</div>
+        </div>
+        <div class="setting-control">
+          <select class="styled-select" id="favicon" onchange="saveFavicon()">
+            <option value="/worksheets/assets/favicon/logo.png">Astroid ロゴ</option>
+            <option value="/worksheets/assets/favicon/gmail-16-16.png">Gmail ロゴ</option>
+            <option value="/worksheets/assets/favicon/classroom-32-32.png">Classroom ロゴ</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">ファビコン URL</div>
+          <div class="setting-desc">任意の画像URLを入力してカスタムアイコンを設定します。</div>
+        </div>
+        <div class="setting-control">
+          <input type="text" class="styled-input" id="faviconurl" placeholder="https://...">
+          <button class="save-btn" onclick="saveCloakSettings()">保存</button>
+        </div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">サイト名</div>
+          <div class="setting-desc">ブラウザタブに表示されるタイトルを変更します。</div>
+        </div>
+        <div class="setting-control">
+          <input type="text" class="styled-input" id="site-name" placeholder="マイサイト">
+          <button class="save-btn" onclick="saveCloakSettings()">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- パニックボタン -->
+    <div id="section-advanced" class="section" style="display:none">
+      <div class="section-title">パニックボタン</div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">カスタムキー</div>
+          <div class="setting-desc">押したときにリダイレクトするキーを設定します。</div>
+        </div>
+        <div class="setting-control">
+          <input type="text" class="styled-input" id="keyInput" placeholder="例: Escape">
+        </div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">移動先 URL</div>
+          <div class="setting-desc">パニックキーを押したときに移動するURLを設定します。</div>
+        </div>
+        <div class="setting-control">
+          <input type="text" class="styled-input" id="urlInput" placeholder="https://...">
+          <button class="save-btn" onclick="savePanic()">保存</button>
+        </div>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">About Blank 切り替え</div>
+          <div class="setting-desc">ページ読み込み時に About Blank を開始するか設定します。</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="ABC" onchange="saveToggle('ABC', this.checked)">
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+
+      <div class="setting-card">
+        <div class="setting-info">
+          <div class="setting-label">About Blank 移動先</div>
+          <div class="setting-desc">About Blank 起動時にリダイレクトするURLを設定します。</div>
+        </div>
+        <div class="setting-control">
+          <input type="text" class="styled-input" id="ABCDirect" placeholder="https://...">
+          <button class="save-btn" onclick="saveABCDirect()">保存</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast">✓ 保存しました</div>
+
+<script src="/worksheets/account.js"></script>
+<script src="api/newloader.js"></script>
+<script src="api/settings.js"></script>
+<script src="api/abct.js"></script>
+<script src="api/searchengine.js"></script>
+<script src="api/unlods.js"></script>
+
+<script>
+// ---- セクション切替 ----
+function showSection(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+  document.getElementById('section-' + id).style.display = 'block';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ---- フィルタ ----
+function filterNav(q) {
+  const lower = q.toLowerCase();
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.style.display = item.textContent.toLowerCase().includes(lower) ? '' : 'none';
+  });
+}
+
+// ---- 保存ヘルパー ----
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = '✓ ' + (msg || '保存しました');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function saveToggle(key, val) {
+  localStorage.setItem(key, val);
+  showToast();
+}
+
+function saveSearchEngine() {
+  const v = document.getElementById('searchengine').value;
+  localStorage.setItem('searchengine', v);
+  if (typeof TC_ACCOUNT !== 'undefined') TC_ACCOUNT.saveEngine(v);
+  showToast('検索エンジンを保存しました');
+}
+
+function savePanic() {
+  const key = document.getElementById('keyInput').value.trim();
+  const url = document.getElementById('urlInput').value.trim();
+  if (key) localStorage.setItem('panicKey', key);
+  if (url) localStorage.setItem('panicURL', url);
+  showToast('パニックキーを保存しました');
+}
+
+function saveFavicon() {
+  const v = document.getElementById('favicon').value;
+  localStorage.setItem('favicon', v);
+  applyCloak();
+  showToast();
+}
+
+function syncFavicon(el) {
+  localStorage.setItem('favicon', el.value);
+  applyCloak();
+  showToast();
+}
+
+function saveCloakSettings() {
+  const favurl = (document.getElementById('faviconurl')?.value || document.getElementById('faviconurl2')?.value || '').trim();
+  const name   = (document.getElementById('site-name')?.value  || document.getElementById('site-name2')?.value  || '').trim();
+  if (favurl) localStorage.setItem('faviconurl', favurl);
+  if (name)   localStorage.setItem('sitename',   name);
+  applyCloak();
+  showToast('タブ偽装を保存しました');
+}
+
+function saveABCDirect() {
+  const v = document.getElementById('ABCDirect').value.trim();
+  if (v) localStorage.setItem('ABCDirect', v);
+  showToast();
+}
+
+function applyCloak() {
+  const favurl  = localStorage.getItem('faviconurl');
+  const favicon = localStorage.getItem('favicon');
+  const name    = localStorage.getItem('sitename');
+  const src = favurl || (favicon && favicon !== 'default' ? favicon : null);
+  if (src) {
+    let link = document.querySelector("link[rel='icon']");
+    if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+    link.href = src;
+  }
+  if (name) document.title = name;
+}
+
+// ---- 起動時ロード ----
+window.addEventListener('DOMContentLoaded', () => {
+  // トグル
+  ['ABC','panicEnabled','autocloak','onbeforeunload'].forEach(k => {
+    const el = document.getElementById(k);
+    if (el) el.checked = localStorage.getItem(k) === 'true';
+  });
+
+  // 検索エンジン（TC_ACCOUNT 対応: searchengine.js の DOMContentLoaded で処理済み）
+  // フォールバック: TC_ACCOUNT が未ロードの場合は localStorage から読む
+  if (typeof TC_ACCOUNT === 'undefined') {
+    const se = document.getElementById('searchengine');
+    if (se) se.value = localStorage.getItem('searchengine') || 'google';
+  }
+
+  // パニック
+  const pk = document.getElementById('keyInput');
+  const pu = document.getElementById('urlInput');
+  if (pk) pk.value = localStorage.getItem('panicKey') || '';
+  if (pu) pu.value = localStorage.getItem('panicURL') || '';
+
+  // タブ偽装
+  const fn2 = document.getElementById('faviconurl2');
+  const sn2 = document.getElementById('site-name2');
+  if (fn2) fn2.value = localStorage.getItem('faviconurl') || '';
+  if (sn2) sn2.value = localStorage.getItem('sitename') || '';
+
+  applyCloak();
+});
+</script>
+</body>
+</html>

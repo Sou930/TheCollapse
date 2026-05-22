@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>TheCollapse</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="./worksheets/uv/uv.bundle.js"></script>
+<script src="./worksheets/uv/uv.config.js"></script>
+<script src="./worksheets/account.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0e1117;
+  --surface: #161b27;
+  --surface2: #1c2233;
+  --border: #252d3d;
+  --border-hover: #3a4560;
+  --text: #e8ecf3;
+  --muted: #8892a4;
+  --accent: #5b8fff;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, #1e2535 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+  font-family: 'Inter', sans-serif;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  transition: background-image 0.4s;
+}
+body.has-bg-image {
+  background-image: none !important;
+}
+#bg-layer {
+  position: fixed; inset: 0; z-index: 0;
+  background-size: cover; background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0; transition: opacity 0.5s;
+  pointer-events: none;
+}
+#bg-layer.visible { opacity: 1; }
+#bg-overlay {
+  position: fixed; inset: 0; z-index: 1;
+  background: rgba(0,0,0,0.45);
+  opacity: 0; transition: opacity 0.5s; pointer-events: none;
+}
+#bg-overlay.visible { opacity: 1; }
+
+nav, main, footer { position: relative; z-index: 2; }
+
+/* ナビ */
+nav {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(14,17,23,0.7);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(37,45,61,0.5);
+}
+.nav-row1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  height: 56px;
+}
+.nav-divider {
+  display: none;
+}
+.nav-row2 {
+  display: none;
+}
+/* Userボタンをnavの外に固定配置（黒枠なし） */
+#account-nav-btn-wrap {
+  position: fixed;
+  top: 62px;
+  right: 20px;
+  z-index: 101;
+}
+.nav-left { display: flex; align-items: center; gap: 10px; }
+.nav-links { display: flex; align-items: center; gap: 4px; }
+.nav-logo {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 17px; font-weight: 700; color: var(--text);
+  text-decoration: none; letter-spacing: -0.3px;
+}
+.version-badge {
+  font-size: 11px; font-weight: 500; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 8px;
+}
+.nav-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: var(--muted);
+  text-decoration: none; background: none; border: none;
+  cursor: pointer; transition: color 0.15s, background 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.nav-btn:hover { color: var(--text); background: var(--surface); }
+
+/* アカウントボタン */
+#account-nav-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 10px 5px 6px; border-radius: 20px;
+  background: var(--surface); border: 1px solid var(--border);
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+  color: var(--text);
+}
+#account-nav-btn:hover { border-color: var(--border-hover); background: var(--surface2); }
+.acct-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg,#5b8fff,#a55bff);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+  overflow: hidden; flex-shrink: 0;
+}
+.acct-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* メイン */
+main {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 80px 20px 120px; gap: 28px;
+}
+.logo-area { display: flex; align-items: center; gap: 14px; }
+.logo-icon {
+  width: 48px; height: 48px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-text {
+  font-size: 48px; font-weight: 700; letter-spacing: -2px;
+  color: var(--text); line-height: 1;
+}
+
+/* 検索 */
+.search-wrapper { width: 100%; max-width: 620px; }
+.search-input-row { position: relative; }
+.engine-btn {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; background: none; border: none;
+  cursor: pointer; padding: 0; display: flex; align-items: center;
+  justify-content: center; z-index: 2; border-radius: 4px;
+}
+.search-input {
+  width: 100%; height: 54px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 14px;
+  padding: 0 52px 0 50px; font-size: 15px;
+  font-family: 'Inter', sans-serif; color: var(--text);
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  caret-color: var(--text);
+}
+.search-input::placeholder { color: var(--muted); }
+.search-input:focus { border-color: var(--border-hover); box-shadow: 0 0 0 3px rgba(255,255,255,0.04); }
+.search-submit {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  padding: 6px; border-radius: 8px; transition: color 0.15s, background 0.15s;
+}
+.search-submit:hover { color: var(--text); background: var(--border); }
+.engine-menu {
+  display: none; position: absolute; top: calc(100% + 8px); left: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; z-index: 200; min-width: 190px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden;
+}
+.engine-menu.open { display: block; }
+.engine-option {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  cursor: pointer; font-size: 14px; color: var(--muted);
+  transition: background 0.1s, color 0.1s;
+}
+.engine-option:hover { background: var(--border); color: var(--text); }
+.engine-option.selected { color: var(--text); }
+.engine-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: transparent; border: 1.5px solid var(--border-hover); margin-left: auto;
+}
+.engine-option.selected .engine-dot { background: #5b8fff; border-color: #5b8fff; }
+
+/* ショートカット */
+.shortcuts { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+.shortcut { display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; text-decoration: none; }
+.shortcut-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s; overflow: hidden;
+}
+.shortcut:hover .shortcut-icon { background: #1e2535; border-color: var(--border-hover); transform: translateY(-2px); }
+.shortcut-icon img { width: 34px; height: 34px; border-radius: 50%; }
+.shortcut-icon.add { color: var(--muted); }
+.shortcut-label { font-size: 13px; color: var(--muted); font-weight: 400; }
+.shortcut:hover .shortcut-label { color: var(--text); }
+
+/* 検索エリア内タブ一覧 */
+.search-tabs {
+  display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+}
+.search-tab-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 20px;
+  font-size: 13px; font-weight: 500; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border);
+  text-decoration: none; cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.search-tab-btn:hover { color: var(--text); background: var(--surface2); border-color: var(--border-hover); }
+.search-tab-btn svg { flex-shrink: 0; }
+footer {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  padding: 16px 28px; display: flex; align-items: center; justify-content: space-between;
+  z-index: 2;
+}
+.footer-left, .footer-right { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); }
+.footer-link {
+  display: flex; align-items: center; gap: 5px; color: var(--muted);
+  text-decoration: none; background: none; border: none; cursor: pointer;
+  font-size: 13px; font-family: 'Inter', sans-serif; padding: 4px 6px;
+  border-radius: 6px; transition: color 0.15s, background 0.15s;
+}
+.footer-link:hover { color: var(--text); background: var(--surface); }
+
+/* ======= モーダル共通 ======= */
+.modal-backdrop {
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 28px 28px 24px;
+  width: 380px; max-width: 95vw;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  position: relative;
+}
+.modal-title {
+  font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 20px;
+}
+.modal-close {
+  position: absolute; top: 16px; right: 16px;
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  width: 28px; height: 28px; border-radius: 8px; display: flex;
+  align-items: center; justify-content: center; font-size: 16px;
+  transition: background 0.1s, color 0.1s;
+}
+.modal-close:hover { background: var(--border); color: var(--text); }
+.modal-tabs {
+  display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+}
+.modal-tab {
+  padding: 8px 16px; font-size: 14px; font-weight: 500; color: var(--muted);
+  background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; transition: color 0.15s; font-family: 'Inter', sans-serif;
+}
+.modal-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.modal-tab-content { display: none; }
+.modal-tab-content.active { display: block; }
+
+/* フォーム */
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: block; }
+.form-input {
+  width: 100%; height: 40px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; padding: 0 12px; font-size: 14px; color: var(--text);
+  font-family: 'Inter', sans-serif; outline: none;
+  transition: border-color 0.15s;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-error { font-size: 12px; color: #ff6b6b; margin-top: 4px; }
+.btn-primary {
+  width: 100%; height: 40px; background: var(--accent); border: none;
+  border-radius: 9px; font-size: 14px; font-weight: 600; color: #fff;
+  cursor: pointer; font-family: 'Inter', sans-serif; margin-top: 4px;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.85; }
+.btn-ghost {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  height: 34px; border-radius: 8px; padding: 0 14px; font-size: 13px;
+  cursor: pointer; font-family: 'Inter', sans-serif; transition: border-color 0.15s, color 0.15s;
+}
+.btn-ghost:hover { border-color: var(--border-hover); color: var(--text); }
+.btn-danger {
+  background: none; border: 1px solid #ff4444; color: #ff6b6b;
+  height: 34px; border-radius: 8px; padding: 0 14px; font-size: 13px;
+  cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.15s;
+}
+.btn-danger:hover { background: rgba(255,68,68,0.12); }
+
+/* アバター選択 */
+.avatar-picker { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.avatar-preview {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: linear-gradient(135deg,#5b8fff,#a55bff);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; color: #fff; overflow: hidden; flex-shrink: 0;
+}
+.avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-actions { display: flex; flex-direction: column; gap: 6px; }
+.avatar-upload-btn {
+  height: 30px; padding: 0 12px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 7px; font-size: 12px; color: var(--muted); cursor: pointer;
+  font-family: 'Inter', sans-serif; transition: border-color 0.15s, color 0.15s;
+}
+.avatar-upload-btn:hover { border-color: var(--border-hover); color: var(--text); }
+
+/* ======= アカウントドロップダウン ======= */
+#account-dropdown {
+  display: none; position: fixed; top: 62px; right: 20px; z-index: 500;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 12px; width: 240px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden;
+}
+#account-dropdown.open { display: block; }
+.acct-dd-header {
+  padding: 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.acct-dd-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg,#5b8fff,#a55bff);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff; overflow: hidden; flex-shrink: 0;
+}
+.acct-dd-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.acct-dd-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.acct-dd-role { font-size: 12px; color: var(--muted); }
+.acct-dd-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  font-size: 13px; color: var(--muted); cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.acct-dd-item:hover { background: var(--border); color: var(--text); }
+.acct-dd-divider { height: 1px; background: var(--border); margin: 4px 0; }
+.acct-dd-item.danger { color: #ff6b6b; }
+.acct-dd-item.danger:hover { background: rgba(255,68,68,0.1); color: #ff8888; }
+
+/* ======= 背景設定モーダル ======= */
+.bg-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px;
+}
+.bg-option {
+  aspect-ratio: 16/9; border-radius: 8px; cursor: pointer;
+  border: 2px solid transparent; overflow: hidden;
+  transition: border-color 0.15s, transform 0.15s;
+  position: relative;
+}
+.bg-option:hover { transform: scale(1.03); }
+.bg-option.selected { border-color: var(--accent); }
+.bg-option img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bg-option.none-opt {
+  background: var(--surface); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+  color: var(--muted); font-size: 11px; border: 1px solid var(--border);
+}
+.bg-option.none-opt:hover { color: var(--text); }
+.bg-upload-row { display: flex; align-items: center; gap: 8px; }
+.bg-upload-label {
+  flex: 1; height: 36px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.bg-upload-label:hover { border-color: var(--border-hover); color: var(--text); }
+
+/* ======= アカウント設定モーダル ======= */
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label { font-size: 14px; color: var(--text); }
+.setting-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- 背景レイヤー -->
+<div id="bg-layer"></div>
+<div id="bg-overlay"></div>
+
+<nav>
+  <div class="nav-row1">
+    <div class="nav-left">
+      <a href="index.html" class="nav-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        TheCollapse
+      </a>
+      <span class="version-badge">v1.1</span>
+    </div>
+    <div class="nav-links">
+        <a href="./index.html" class="nav-btn active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Home
+        </a>
+        <a href="./worksheets/game.html" class="nav-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="16" cy="10" r="1" fill="currentColor"/><circle cx="18" cy="12" r="1" fill="currentColor"/></svg>
+          Game
+        </a>
+        <a href="./worksheets/chat.html" class="nav-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Chat
+        </a>
+        <a href="./worksheets/settings.html" class="nav-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </a>
+      </div>
+  </div>
+</nav>
+
+<!-- Userボタン（navの外・固定・黒枠なし） -->
+<div id="account-nav-btn-wrap">
+  <button id="account-nav-btn" onclick="toggleAccountDropdown()">
+    <div class="acct-avatar" id="nav-avatar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </div>
+    <span id="nav-account-label">ログイン</span>
+  </button>
+</div>
+
+<!-- アカウントドロップダウン -->
+<div id="account-dropdown">
+  <div class="acct-dd-header" id="dd-header">
+    <div class="acct-dd-avatar" id="dd-avatar"></div>
+    <div>
+      <div class="acct-dd-name" id="dd-name">ゲスト</div>
+      <div class="acct-dd-role" id="dd-role">ログインしていません</div>
+    </div>
+  </div>
+  <div id="dd-logged-out">
+    <div class="acct-dd-item" onclick="openAccountModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      ログイン / アカウント作成
+    </div>
+  </div>
+  <div id="dd-logged-in" style="display:none">
+    <div class="acct-dd-item" onclick="openBgModal(); closeAccountDropdown()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      背景画像を変更
+    </div>
+    <div class="acct-dd-item" onclick="openAccountSettingsModal(); closeAccountDropdown()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      アカウント設定
+    </div>
+    <div class="acct-dd-divider"></div>
+    <div class="acct-dd-item danger" onclick="doLogout()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      ログアウト
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="logo-area">
+    <div class="logo-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    </div>
+    <span class="logo-text">TheCollapse</span>
+  </div>
+
+  <div class="search-wrapper" id="searchWrapper">
+    <div class="search-input-row">
+    <button class="engine-btn" id="engineBtn" onclick="toggleMenu(event)">
+      <span id="engineIcon"></span>
+    </button>
+    <div class="engine-menu" id="engineMenu">
+      <div class="engine-option" id="opt-google" onclick="setEngine('google')">
+        <svg width="15" height="15" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.2 33.3 29.6 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.5 29.4 4.5 24 4.5 12.7 4.5 3.5 13.7 3.5 25S12.7 45.5 24 45.5c11 0 20-8 20-20.5 0-1.4-.1-2.7-.5-5z"/><path fill="#34A853" d="M6.3 15.7l7 5.1C15.1 17.2 19.2 14 24 14c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.5 29.4 4.5 24 4.5c-7.6 0-14.2 4.4-17.7 11.2z"/><path fill="#FBBC05" d="M24 45.5c5.3 0 10.1-1.8 13.8-4.8l-6.4-5.4C29.4 37.1 26.8 38 24 38c-5.5 0-10.2-3.6-11.9-8.6l-7 5.4C8.5 41.4 15.6 45.5 24 45.5z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.8 2.2-2.3 4.1-4.3 5.4l6.4 5.4C41.7 36.2 44.5 31 44.5 25c0-1.4-.1-2.7-.5-5z"/></svg>
+        Google <div class="engine-dot"></div>
+      </div>
+      <div class="engine-option" id="opt-bing" onclick="setEngine('bing')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="#0078D4"><path d="M5 2l4 1.4v13.8l4.6-2.6L9 12.4 13 6l6 8-7.5 4.3L5 20V2z"/></svg>
+        Bing <div class="engine-dot"></div>
+      </div>
+      <div class="engine-option" id="opt-duckduckgo" onclick="setEngine('duckduckgo')">
+        <svg width="15" height="15" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#DE5833"/><circle cx="50" cy="42" r="22" fill="white"/><circle cx="58" cy="36" r="5" fill="#333"/><circle cx="60" cy="35" r="2" fill="white"/><path d="M35 65 Q50 80 65 65" stroke="#333" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+        DuckDuckGo <div class="engine-dot"></div>
+      </div>
+    </div>
+    <form onsubmit="doSearch(event)">
+      <input type="text" id="searchInput" class="search-input" placeholder="Search Google or type URL" autocomplete="off" autofocus>
+    </form>
+    <button class="search-submit" onclick="doSearch(event)">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </button>
+    </div>
+    <!-- タブ一覧 -->
+    <div class="search-tabs" style="justify-content:flex-end;">
+      <a class="search-tab-btn" href="./worksheets/go.html">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Browser
+      </a>
+    </div>
+  </div>
+
+  <div class="shortcuts">
+    <a class="shortcut" href="#" onclick="goTo('https://google.com',event)">
+      <div class="shortcut-icon"><img src="https://www.google.com/favicon.ico" alt="Google"></div>
+      <span class="shortcut-label">Google</span>
+    </a>
+    <a class="shortcut" href="#" onclick="goTo('https://youtube.com',event)">
+      <div class="shortcut-icon"><img src="https://www.youtube.com/favicon.ico" alt="YouTube"></div>
+      <span class="shortcut-label">YouTube</span>
+    </a>
+    <a class="shortcut" href="#" onclick="goTo('https://discord.com',event)">
+      <div class="shortcut-icon"><img src="https://discord.com/assets/favicon.ico" alt="Discord"></div>
+      <span class="shortcut-label">Discord</span>
+    </a>
+    <a class="shortcut" href="#" onclick="goTo('https://github.com',event)">
+      <div class="shortcut-icon"><img src="https://github.com/favicon.ico" alt="GitHub"></div>
+      <span class="shortcut-label">GitHub</span>
+    </a>
+    <a class="shortcut" href="#">
+      <div class="shortcut-icon add">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </div>
+      <span class="shortcut-label">New</span>
+    </a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-left"></div>
+  <div class="footer-right">
+    <span style="color:var(--muted);font-size:13px;">developer : sou930</span>
+  </div>
+</footer>
+
+<!-- ======= ログイン / 新規登録モーダル ======= -->
+<div class="modal-backdrop" id="account-modal" onclick="closeAccountModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeAccountModal()">✕</button>
+    <div class="modal-title">アカウント</div>
+    <div class="modal-tabs">
+      <button class="modal-tab active" onclick="switchAccountTab('login')">ログイン</button>
+      <button class="modal-tab" onclick="switchAccountTab('register')">新規作成</button>
+    </div>
+
+    <!-- ログインタブ -->
+    <div class="modal-tab-content active" id="tab-login">
+      <div class="form-group">
+        <label class="form-label">ユーザー名</label>
+        <input class="form-input" id="login-username" type="text" placeholder="username" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label">パスワード</label>
+        <input class="form-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div class="form-error" id="login-error"></div>
+      <button class="btn-primary" onclick="doLogin()" style="margin-top:12px">ログイン</button>
+    </div>
+
+    <!-- 新規登録タブ -->
+    <div class="modal-tab-content" id="tab-register">
+      <div class="avatar-picker">
+        <div class="avatar-preview" id="reg-avatar-preview">?</div>
+        <div class="avatar-actions">
+          <button class="avatar-upload-btn" onclick="document.getElementById('reg-avatar-input').click()">
+            📷 アイコンを選択
+          </button>
+          <input type="file" id="reg-avatar-input" accept="image/*" style="display:none" onchange="onAvatarChange(event,'reg-avatar-preview','reg-avatar-data')">
+          <input type="hidden" id="reg-avatar-data">
+          <span style="font-size:11px;color:var(--muted)">省略可</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ユーザー名</label>
+        <input class="form-input" id="reg-username" type="text" placeholder="username" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">パスワード</label>
+        <input class="form-input" id="reg-password" type="password" placeholder="8文字以上" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">パスワード（確認）</label>
+        <input class="form-input" id="reg-password2" type="password" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div class="form-error" id="reg-error"></div>
+      <button class="btn-primary" onclick="doRegister()" style="margin-top:12px">アカウントを作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======= 背景設定モーダル ======= -->
+<div class="modal-backdrop" id="bg-modal" onclick="closeBgModal(event)">
+  <div class="modal" onclick="event.stopPropagation()" style="width:460px">
+    <button class="modal-close" onclick="closeBgModal()">✕</button>
+    <div class="modal-title">背景画像</div>
+    <div class="bg-grid" id="bg-presets"></div>
+    <div class="bg-upload-row">
+      <label class="bg-upload-label" for="bg-file-input">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        カスタム画像をアップロード
+      </label>
+      <input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="onBgUpload(event)">
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px;gap:8px;">
+      <button class="btn-ghost" onclick="closeBgModal()">キャンセル</button>
+      <button class="btn-primary" style="width:auto;padding:0 20px" onclick="applyBg()">適用</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======= アカウント設定モーダル ======= -->
+<div class="modal-backdrop" id="acct-settings-modal" onclick="closeAccountSettingsModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeAccountSettingsModal()">✕</button>
+    <div class="modal-title">アカウント設定</div>
+
+    <div class="avatar-picker" style="margin-bottom:20px">
+      <div class="avatar-preview" id="settings-avatar-preview"></div>
+      <div class="avatar-actions">
+        <button class="avatar-upload-btn" onclick="document.getElementById('settings-avatar-input').click()">
+          📷 アイコンを変更
+        </button>
+        <input type="file" id="settings-avatar-input" accept="image/*" style="display:none" onchange="onAvatarChange(event,'settings-avatar-preview','settings-avatar-data')">
+        <input type="hidden" id="settings-avatar-data">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">表示名（ユーザー名）</label>
+      <input class="form-input" id="settings-username-display" type="text" disabled style="color:var(--muted)">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">新しいパスワード（変更する場合）</label>
+      <input class="form-input" id="settings-new-password" type="password" placeholder="空白で変更なし">
+    </div>
+
+    <div class="form-error" id="settings-error"></div>
+
+    <div style="display:flex;justify-content:space-between;margin-top:16px;align-items:center">
+      <button class="btn-danger" onclick="confirmDeleteAccount()">アカウントを削除</button>
+      <button class="btn-primary" style="width:auto;padding:0 20px" onclick="saveAccountSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ===== 検索エンジン =====
+const ENGINES = {
+  google:     { url: q => 'https://google.com/search?q='+encodeURIComponent(q),     ph: 'Search Google or type URL',     icon: `<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.2 33.3 29.6 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.5 29.4 4.5 24 4.5 12.7 4.5 3.5 13.7 3.5 25S12.7 45.5 24 45.5c11 0 20-8 20-20.5 0-1.4-.1-2.7-.5-5z"/><path fill="#34A853" d="M6.3 15.7l7 5.1C15.1 17.2 19.2 14 24 14c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.5 29.4 4.5 24 4.5c-7.6 0-14.2 4.4-17.7 11.2z"/><path fill="#FBBC05" d="M24 45.5c5.3 0 10.1-1.8 13.8-4.8l-6.4-5.4C29.4 37.1 26.8 38 24 38c-5.5 0-10.2-3.6-11.9-8.6l-7 5.4C8.5 41.4 15.6 45.5 24 45.5z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.8 2.2-2.3 4.1-4.3 5.4l6.4 5.4C41.7 36.2 44.5 31 44.5 25c0-1.4-.1-2.7-.5-5z"/></svg>` },
+  bing:       { url: q => 'https://bing.com/search?q='+encodeURIComponent(q),       ph: 'Search Bing or type URL',       icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="#0078D4"><path d="M5 2l4 1.4v13.8l4.6-2.6L9 12.4 13 6l6 8-7.5 4.3L5 20V2z"/></svg>` },
+  duckduckgo: { url: q => 'https://duckduckgo.com/?q='+encodeURIComponent(q),       ph: 'Search DuckDuckGo or type URL', icon: `<svg width="20" height="20" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#DE5833"/><circle cx="50" cy="42" r="22" fill="white"/><circle cx="58" cy="36" r="5" fill="#333"/><circle cx="60" cy="35" r="2" fill="white"/><path d="M35 65 Q50 80 65 65" stroke="#333" stroke-width="3" fill="none" stroke-linecap="round"/></svg>` },
+};
+let current = TC_ACCOUNT.getEngine();
+applyEngine(current, false);
+
+function applyEngine(e, save=true) {
+  current = e;
+  if (save) TC_ACCOUNT.saveEngine(e);
+  document.getElementById('engineIcon').innerHTML = ENGINES[e].icon;
+  document.getElementById('searchInput').placeholder = ENGINES[e].ph;
+  document.querySelectorAll('.engine-option').forEach(el => el.classList.remove('selected'));
+  document.getElementById('opt-'+e)?.classList.add('selected');
+}
+function setEngine(e) { applyEngine(e); closeMenu(); }
+function toggleMenu(ev) { ev.stopPropagation(); document.getElementById('engineMenu').classList.toggle('open'); }
+function closeMenu() { document.getElementById('engineMenu').classList.remove('open'); }
+document.addEventListener('click', e => {
+  if (!document.getElementById('searchWrapper').contains(e.target)) closeMenu();
+  if (!document.getElementById('account-dropdown').contains(e.target) &&
+      !document.getElementById('account-nav-btn').contains(e.target)) {
+    closeAccountDropdown();
+  }
+});
+
+function doSearch(ev) {
+  ev.preventDefault();
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  let url;
+  try {
+    const u = new URL(q);
+    if (u.protocol!=='http:'&&u.protocol!=='https:') u.protocol='https:';
+    url = u.toString();
+  } catch {
+    url = /^[a-z]+\.[a-z]{2,}$/i.test(q) ? 'https://'+q : ENGINES[current].url(q);
+  }
+  navigate(url);
+}
+function goTo(url, ev) { ev.preventDefault(); navigate(url); }
+function navigate(url) {
+  if (typeof __uv$config==='undefined') { window.open(url,'_blank'); return; }
+  window.navigator.serviceWorker.register('/sw.js',{scope:__uv$config.prefix})
+    .then(()=>{ sessionStorage.setItem('uvURL',__uv$config.encodeUrl(url)); location.href='./worksheets/go.html'; })
+    .catch(()=>window.open(url,'_blank'));
+}
+
+// ===== アカウント UI =====
+function renderAccountNav() {
+  const user = TC_ACCOUNT.currentAccount();
+  const navAvatar = document.getElementById('nav-avatar');
+  const navLabel  = document.getElementById('nav-account-label');
+  const ddAvatar  = document.getElementById('dd-avatar');
+  const ddName    = document.getElementById('dd-name');
+  const ddRole    = document.getElementById('dd-role');
+  const ddLoggedIn  = document.getElementById('dd-logged-in');
+  const ddLoggedOut = document.getElementById('dd-logged-out');
+
+  if (user) {
+    const initials = user.username.slice(0,2).toUpperCase();
+    const avatarHtml = user.icon
+      ? `<img src="${user.icon}" alt="">`
+      : initials;
+    navAvatar.innerHTML = avatarHtml;
+    navLabel.textContent = user.username;
+    ddAvatar.innerHTML = avatarHtml;
+    ddName.textContent = user.username;
+    ddRole.textContent = 'ログイン中';
+    ddLoggedIn.style.display = 'block';
+    ddLoggedOut.style.display = 'none';
+  } else {
+    navAvatar.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    navLabel.textContent = 'ログイン';
+    ddAvatar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    ddName.textContent = 'ゲスト';
+    ddRole.textContent = 'ログインしていません';
+    ddLoggedIn.style.display = 'none';
+    ddLoggedOut.style.display = 'block';
+  }
+}
+
+function toggleAccountDropdown() {
+  document.getElementById('account-dropdown').classList.toggle('open');
+}
+function closeAccountDropdown() {
+  document.getElementById('account-dropdown').classList.remove('open');
+}
+
+// ===== ログイン / 新規登録モーダル =====
+function openAccountModal() {
+  closeAccountDropdown();
+  document.getElementById('account-modal').classList.add('open');
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('reg-error').textContent = '';
+}
+function closeAccountModal(e) {
+  if (e && e.target !== document.getElementById('account-modal')) return;
+  document.getElementById('account-modal').classList.remove('open');
+}
+function switchAccountTab(tab) {
+  document.querySelectorAll('.modal-tab').forEach((t,i) => t.classList.toggle('active', (tab==='login'&&i===0)||(tab==='register'&&i===1)));
+  document.getElementById('tab-login').classList.toggle('active', tab==='login');
+  document.getElementById('tab-register').classList.toggle('active', tab==='register');
+}
+
+async function doLogin() {
+  const u = document.getElementById('login-username').value.trim();
+  const p = document.getElementById('login-password').value;
+  const err = document.getElementById('login-error');
+  err.textContent = '';
+  try {
+    await TC_ACCOUNT.login(u, p);
+    document.getElementById('account-modal').classList.remove('open');
+    renderAccountNav();
+    applyBgFromAccount();
+  } catch(e) { err.textContent = e.message; }
+}
+
+async function doRegister() {
+  const u  = document.getElementById('reg-username').value.trim();
+  const p  = document.getElementById('reg-password').value;
+  const p2 = document.getElementById('reg-password2').value;
+  const icon = document.getElementById('reg-avatar-data').value || null;
+  const err = document.getElementById('reg-error');
+  err.textContent = '';
+  if (!u) { err.textContent = 'ユーザー名を入力してください'; return; }
+  if (p.length < 6) { err.textContent = 'パスワードは6文字以上にしてください'; return; }
+  if (p !== p2)     { err.textContent = 'パスワードが一致しません'; return; }
+  try {
+    await TC_ACCOUNT.createAccount(u, p, icon);
+    await TC_ACCOUNT.login(u, p);
+    document.getElementById('account-modal').classList.remove('open');
+    renderAccountNav();
+  } catch(e) { err.textContent = e.message; }
+}
+
+function doLogout() {
+  TC_ACCOUNT.logout();
+  closeAccountDropdown();
+  renderAccountNav();
+  applyBgFromAccount();
+}
+
+// ===== アバター選択 =====
+function onAvatarChange(event, previewId, dataId) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = e.target.result;
+    const preview = document.getElementById(previewId);
+    preview.innerHTML = `<img src="${data}" alt="">`;
+    document.getElementById(dataId).value = data;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===== アカウント設定モーダル =====
+function openAccountSettingsModal() {
+  const user = TC_ACCOUNT.currentAccount();
+  if (!user) return;
+  document.getElementById('settings-username-display').value = user.username;
+  document.getElementById('settings-new-password').value = '';
+  document.getElementById('settings-error').textContent = '';
+  const preview = document.getElementById('settings-avatar-preview');
+  preview.innerHTML = user.icon ? `<img src="${user.icon}" alt="">` : user.username.slice(0,2).toUpperCase();
+  document.getElementById('settings-avatar-data').value = user.icon || '';
+  document.getElementById('acct-settings-modal').classList.add('open');
+}
+function closeAccountSettingsModal(e) {
+  if (e && e.target !== document.getElementById('acct-settings-modal')) return;
+  document.getElementById('acct-settings-modal').classList.remove('open');
+}
+async function saveAccountSettings() {
+  const newPass = document.getElementById('settings-new-password').value;
+  const newIcon = document.getElementById('settings-avatar-data').value || null;
+  const err = document.getElementById('settings-error');
+  err.textContent = '';
+  const fields = { icon: newIcon };
+  if (newPass) {
+    if (newPass.length < 6) { err.textContent = 'パスワードは6文字以上にしてください'; return; }
+    // hash (同じ方式をaccount.jsが使うのでここでは保持するだけ)
+    const h = hashDjb2(newPass);
+    fields.passwordHash = h;
+  }
+  await TC_ACCOUNT.updateAccount(fields);
+  document.getElementById('acct-settings-modal').classList.remove('open');
+  renderAccountNav();
+}
+function hashDjb2(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
+  return (h >>> 0).toString(16);
+}
+async function confirmDeleteAccount() {
+  const user = TC_ACCOUNT.currentAccount();
+  if (!user) return;
+  const pass = prompt(`アカウント「${user.username}」を削除します。\nパスワードを入力してください:`);
+  if (pass === null) return;
+  try {
+    await TC_ACCOUNT.deleteAccount(user.username, pass);
+    document.getElementById('acct-settings-modal').classList.remove('open');
+    renderAccountNav();
+    applyBgFromAccount();
+  } catch(e) { alert(e.message); }
+}
+
+// ===== 背景モーダル =====
+// プリセット背景（Unsplash 小さいサムネ）
+const BG_PRESETS = [
+  { label: 'なし', value: null },
+  { label: '宇宙', value: 'https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?w=1920&q=80' },
+  { label: '山', value: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920&q=80' },
+  { label: '海', value: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=1920&q=80' },
+  { label: '森', value: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=1920&q=80' },
+  { label: '夜景', value: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1920&q=80' },
+];
+const BG_THUMBS = [
+  null,
+  'https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?w=200&q=60',
+  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=200&q=60',
+  'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=200&q=60',
+  'https://images.unsplash.com/photo-1448375240586-882707db888b?w=200&q=60',
+  'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=200&q=60',
+];
+
+let _pendingBg = undefined; // undefined = 未変更
+
+function openBgModal() {
+  _pendingBg = undefined;
+  renderBgGrid();
+  document.getElementById('bg-modal').classList.add('open');
+}
+function closeBgModal(e) {
+  if (e && e.target !== document.getElementById('bg-modal')) return;
+  document.getElementById('bg-modal').classList.remove('open');
+}
+function renderBgGrid() {
+  const currentBg = TC_ACCOUNT.getBg();
+  const grid = document.getElementById('bg-presets');
+  grid.innerHTML = BG_PRESETS.map((p, i) => {
+    const isSelected = (p.value === currentBg) || (_pendingBg !== undefined && p.value === _pendingBg);
+    if (!p.value) {
+      return `<div class="bg-option none-opt${isSelected?' selected':''}" onclick="selectBgPreset(null,this)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        なし
+      </div>`;
+    }
+    return `<div class="bg-option${isSelected?' selected':''}" onclick="selectBgPreset('${p.value}',this)">
+      <img src="${BG_THUMBS[i]}" alt="${p.label}" loading="lazy">
+    </div>`;
+  }).join('');
+}
+function selectBgPreset(value, el) {
+  _pendingBg = value;
+  document.querySelectorAll('.bg-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function onBgUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _pendingBg = e.target.result;
+    // カスタム画像をグリッドに追加
+    const grid = document.getElementById('bg-presets');
+    let custom = grid.querySelector('.bg-custom');
+    if (!custom) {
+      custom = document.createElement('div');
+      custom.className = 'bg-option bg-custom';
+      grid.appendChild(custom);
+    }
+    custom.innerHTML = `<img src="${_pendingBg}" alt="カスタム">`;
+    document.querySelectorAll('.bg-option').forEach(o => o.classList.remove('selected'));
+    custom.classList.add('selected');
+    custom.onclick = () => { _pendingBg = e.target.result; document.querySelectorAll('.bg-option').forEach(o=>o.classList.remove('selected')); custom.classList.add('selected'); };
+  };
+  reader.readAsDataURL(file);
+}
+async function applyBg() {
+  if (_pendingBg === undefined) { closeBgModal(); return; }
+  await TC_ACCOUNT.saveBg(_pendingBg);
+  applyBgFromAccount();
+  closeBgModal();
+}
+function applyBgFromAccount() {
+  const bg = TC_ACCOUNT.getBg();
+  const layer = document.getElementById('bg-layer');
+  const overlay = document.getElementById('bg-overlay');
+  if (bg) {
+    layer.style.backgroundImage = `url('${bg}')`;
+    layer.classList.add('visible');
+    overlay.classList.add('visible');
+    document.body.classList.add('has-bg-image');
+  } else {
+    layer.classList.remove('visible');
+    overlay.classList.remove('visible');
+    document.body.classList.remove('has-bg-image');
+    setTimeout(() => { layer.style.backgroundImage = ''; }, 500);
+  }
+}
+
+// ===== 初期化 =====
+(async () => {
+  await TC_ACCOUNT.restoreSession();
+  renderAccountNav();
+  applyBgFromAccount();
+})();
+</script>
+</body>
+</html>

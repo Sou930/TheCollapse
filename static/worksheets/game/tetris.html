@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0e1117;color:#e8ecf3;font-family:'Inter',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;}
+h1{font-size:32px;font-weight:700;}
+.score-box{background:#161b27;border:1px solid #252d3d;border-radius:8px;padding:8px 20px;text-align:center;min-width:100px;}
+.score-label{font-size:11px;color:#8892a4;text-transform:uppercase;letter-spacing:.5px;}
+.score-val{font-size:22px;font-weight:700;}
+.layout{display:flex;gap:20px;align-items:flex-start;}
+canvas{border-radius:8px;border:1px solid #252d3d;}
+.sidebar{display:flex;flex-direction:column;gap:12px;}
+.btn{background:#a55bff;border:none;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;width:100%;}
+.btn:hover{opacity:.85;}
+#msg{font-size:15px;font-weight:600;color:#a55bff;min-height:22px;text-align:center;}
+p.hint{font-size:12px;color:#8892a4;text-align:center;}
+</style>
+</head>
+<body>
+<h1>Tetris</h1>
+<div id="msg"></div>
+<div class="layout">
+  <canvas id="c" width="200" height="400"></canvas>
+  <div class="sidebar">
+    <div class="score-box"><div class="score-label">SCORE</div><div class="score-val" id="score">0</div></div>
+    <div class="score-box"><div class="score-label">LINES</div><div class="score-val" id="lines">0</div></div>
+    <div class="score-box"><div class="score-label">LEVEL</div><div class="score-val" id="level">1</div></div>
+    <button class="btn" onclick="init()">New Game</button>
+  </div>
+</div>
+<p class="hint">← → to move &nbsp;↑ rotate &nbsp;↓ soft drop &nbsp;Space hard drop</p>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d'),SZ=20,COLS=10,ROWS=20;
+const COLORS=['','#5b8fff','#3fcf8e','#ff6b6b','#ffd166','#a55bff','#06c4d9','#ff9800'];
+const PIECES=[
+  [[1,1,1,1]],// I
+  [[2,0,0],[2,2,2]],// J
+  [[0,0,3],[3,3,3]],// L
+  [[4,4],[4,4]],// O
+  [[0,5,5],[5,5,0]],// S
+  [[0,6,0],[6,6,6]],// T
+  [[7,7,0],[0,7,7]] // Z
+];
+let board,cur,curX,curY,score,lines,level,running,timer;
+function init(){
+  board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  score=0;lines=0;level=1;running=true;
+  document.getElementById('score').textContent=0;
+  document.getElementById('lines').textContent=0;
+  document.getElementById('level').textContent=1;
+  document.getElementById('msg').textContent='';
+  clearInterval(timer);
+  spawn();render();
+  timer=setInterval(tick,Math.max(100,600-level*50));
+}
+function spawn(){
+  const p=PIECES[Math.floor(Math.random()*PIECES.length)];
+  cur=p.map(r=>[...r]);
+  curX=Math.floor((COLS-cur[0].length)/2);curY=0;
+  if(collide(cur,curX,curY)){running=false;clearInterval(timer);document.getElementById('msg').textContent='Game Over!';}
+}
+function collide(p,ox,oy){
+  for(let r=0;r<p.length;r++)for(let c=0;c<p[r].length;c++){
+    if(!p[r][c])continue;
+    let nx=ox+c,ny=oy+r;
+    if(nx<0||nx>=COLS||ny>=ROWS)return true;
+    if(ny>=0&&board[ny][nx])return true;
+  }return false;
+}
+function place(){
+  cur.forEach((r,ri)=>r.forEach((v,ci)=>{if(v&&curY+ri>=0)board[curY+ri][curX+ci]=v;}));
+  let cleared=0;
+  board=board.filter(r=>{if(r.every(v=>v)){cleared++;return false;}return true;});
+  while(board.length<ROWS)board.unshift(Array(COLS).fill(0));
+  lines+=cleared;level=Math.floor(lines/10)+1;
+  score+=cleared*100*level;
+  document.getElementById('score').textContent=score;
+  document.getElementById('lines').textContent=lines;
+  document.getElementById('level').textContent=level;
+  clearInterval(timer);timer=setInterval(tick,Math.max(100,600-level*50));
+  spawn();
+}
+function tick(){if(!running)return;if(collide(cur,curX,curY+1))place();else{curY++;render();}}
+function rotate(p){return p[0].map((_,i)=>p.map(r=>r[i]).reverse());}
+function render(){
+  ctx.fillStyle='#161b27';ctx.fillRect(0,0,200,400);
+  board.forEach((r,ri)=>r.forEach((v,ci)=>{
+    if(v){ctx.fillStyle=COLORS[v];ctx.fillRect(ci*SZ,ri*SZ,SZ-1,SZ-1);}
+  }));
+  if(cur)cur.forEach((r,ri)=>r.forEach((v,ci)=>{
+    if(v){ctx.fillStyle=COLORS[v];ctx.fillRect((curX+ci)*SZ,(curY+ri)*SZ,SZ-1,SZ-1);}
+  }));
+}
+document.addEventListener('keydown',e=>{
+  if(!running)return;
+  if(e.key==='ArrowLeft'&&!collide(cur,curX-1,curY)){curX--;render();}
+  else if(e.key==='ArrowRight'&&!collide(cur,curX+1,curY)){curX++;render();}
+  else if(e.key==='ArrowDown'&&!collide(cur,curX,curY+1)){curY++;render();}
+  else if(e.key==='ArrowUp'){let r=rotate(cur);if(!collide(r,curX,curY)){cur=r;render();}}
+  else if(e.key===' '){e.preventDefault();while(!collide(cur,curX,curY+1))curY++;place();render();}
+});
+init();
+let startX=0, startY=0;
+const gameArea = document.getElementById("c");
+
+gameArea.addEventListener("touchstart", e=>{
+  const t = e.touches[0];
+  startX = t.clientX;
+  startY = t.clientY;
+});
+
+gameArea.addEventListener("touchend", e=>{
+  if(!running) return;
+
+  const t = e.changedTouches[0];
+  let dx = t.clientX - startX;
+  let dy = t.clientY - startY;
+
+  // タップ（小さい移動）→ 回転
+  if(Math.abs(dx)<10 && Math.abs(dy)<10){
+    let r = rotate(cur);
+    if(!collide(r,curX,curY)){
+      cur = r;
+      render();
+    }
+    return;
+  }
+
+  if(Math.abs(dx) > Math.abs(dy)){
+    // 左右移動
+    if(dx > 0 && !collide(cur,curX+1,curY)) curX++;
+    else if(dx < 0 && !collide(cur,curX-1,curY)) curX--;
+  }else{
+    // 下移動（ソフトドロップ）
+    if(dy > 0 && !collide(cur,curX,curY+1)) curY++;
+  }
+
+  render();
+});
+</script>
+</body>
+</html>

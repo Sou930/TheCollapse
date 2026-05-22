@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0e1117; color:#e8ecf3; font-family:'Inter',sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; gap:16px; }
+h1 { font-size:32px; font-weight:700; }
+.meta { display:flex; gap:16px; }
+.score-box { background:#161b27; border:1px solid #252d3d; border-radius:8px; padding:8px 20px; text-align:center; }
+.score-label { font-size:11px; color:#8892a4; text-transform:uppercase; letter-spacing:0.5px; }
+.score-val { font-size:22px; font-weight:700; }
+canvas { border-radius:12px; border:1px solid #252d3d; background:#161b27; }
+.btn { background:#3fcf8e; border:none; color:#fff; padding:10px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; }
+.btn:hover { opacity:0.85; }
+#msg { font-size:16px; font-weight:600; color:#3fcf8e; min-height:22px; }
+p.hint { font-size:12px; color:#8892a4; }
+</style>
+</head>
+<body>
+<h1>Snake</h1>
+<div class="meta">
+  <div class="score-box"><div class="score-label">SCORE</div><div class="score-val" id="score">0</div></div>
+  <div class="score-box"><div class="score-label">BEST</div><div class="score-val" id="best">0</div></div>
+</div>
+<canvas id="c" width="400" height="400"></canvas>
+<div id="msg">Press any arrow to start</div>
+<button class="btn" onclick="init()">New Game</button>
+<p class="hint">Arrow keys or WASD</p>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const SZ=20,COLS=20,ROWS=20;
+let snake,dir,nextDir,food,score,best=+localStorage.getItem('snakebest')||0,running=false,raf;
+document.getElementById('best').textContent=best;
+
+function init(){
+  snake=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir={x:1,y:0};nextDir={x:1,y:0};
+  score=0;running=false;
+  document.getElementById('score').textContent=0;
+  document.getElementById('msg').textContent='Press any arrow to start';
+  placeFood();draw();
+}
+function placeFood(){
+  let occupied=new Set(snake.map(s=>`${s.x},${s.y}`));
+  let tries=0;
+  do{food={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)};tries++;}
+  while(occupied.has(`${food.x},${food.y}`)&&tries<200);
+}
+function step(){
+  if(!running)return;
+  dir=nextDir;
+  let head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS||snake.some(s=>s.x===head.x&&s.y===head.y)){
+    running=false;
+    document.getElementById('msg').textContent='Game Over! Score: '+score;
+    return;
+  }
+  snake.unshift(head);
+  if(head.x===food.x&&head.y===food.y){
+    score++;
+    if(score>best){best=score;localStorage.setItem('snakebest',best);}
+    document.getElementById('score').textContent=score;
+    document.getElementById('best').textContent=best;
+    placeFood();
+  } else { snake.pop(); }
+  draw();
+  setTimeout(()=>requestAnimationFrame(step),120-Math.min(score*2,80));
+}
+function draw(){
+  ctx.fillStyle='#161b27';ctx.fillRect(0,0,400,400);
+  // grid dots
+  ctx.fillStyle='#1c2233';
+  for(let x=0;x<COLS;x++)for(let y=0;y<ROWS;y++){
+    ctx.beginPath();ctx.arc(x*SZ+SZ/2,y*SZ+SZ/2,1,0,Math.PI*2);ctx.fill();
+  }
+  // food
+  ctx.fillStyle='#ff6b6b';
+  ctx.beginPath();ctx.arc(food.x*SZ+SZ/2,food.y*SZ+SZ/2,8,0,Math.PI*2);ctx.fill();
+  // snake
+  snake.forEach((s,i)=>{
+    ctx.fillStyle=i===0?'#3fcf8e':'#2a8e66';
+    ctx.beginPath();ctx.roundRect(s.x*SZ+1,s.y*SZ+1,SZ-2,SZ-2,4);ctx.fill();
+  });
+}
+const MAP={ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0},ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},
+           a:{x:-1,y:0},d:{x:1,y:0},w:{x:0,y:-1},s:{x:0,y:1}};
+document.addEventListener('keydown',e=>{
+  const d=MAP[e.key];if(!d)return;e.preventDefault();
+  if(d.x===-dir.x&&d.y===-dir.y)return;
+  nextDir=d;
+  if(!running){running=true;document.getElementById('msg').textContent='';requestAnimationFrame(step);}
+});
+init();
+let startX=0, startY=0;
+
+const gameArea = document.getElementById("c");
+
+gameArea.addEventListener("touchstart", e=>{
+  const t = e.touches[0];
+  startX = t.clientX;
+  startY = t.clientY;
+});
+
+gameArea.addEventListener("touchend", e=>{
+  const t = e.changedTouches[0];
+  let dx = t.clientX - startX;
+  let dy = t.clientY - startY;
+
+  if(Math.abs(dx)<30 && Math.abs(dy)<30) return;
+
+  let newDir;
+  if(Math.abs(dx) > Math.abs(dy)){
+    newDir = dx>0 ? {x:1,y:0} : {x:-1,y:0};
+  } else {
+    newDir = dy>0 ? {x:0,y:1} : {x:0,y:-1};
+  }
+
+  // 逆方向禁止
+  if(newDir.x===-dir.x && newDir.y===-dir.y) return;
+
+  nextDir = newDir;
+
+  if(!running){
+    running=true;
+    document.getElementById('msg').textContent='';
+    requestAnimationFrame(step);
+  }
+});
+gameArea.addEventListener("touchmove", e=>{
+  e.preventDefault();
+}, { passive:false });
+
+</script>
+</body>
+</html>
