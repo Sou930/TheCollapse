@@ -60,11 +60,43 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   if (initialURL) {
     const fullURL = '/service/' + initialURL;
-    // 既存タブがあれば新しいタブを追加、なければ最初のタブをそのURLに
-    if (tabs.length === 0) {
-      createTab(fullURL, false);
+    // sessionStorage 経由の URL は __uv$config.encodeUrl 済みなので復号して
+    // YouTube 動画再生 URL なら直接接続経路に流す。
+    let decodedInitial = null;
+    try {
+      if (typeof __uv$config !== 'undefined' && __uv$config.decodeUrl) {
+        decodedInitial = __uv$config.decodeUrl(initialURL);
+      }
+    } catch {}
+
+    if (decodedInitial &&
+        typeof TC_YT_EDU !== 'undefined' &&
+        TC_YT_EDU.isYouTubeWatchUrl(decodedInitial)) {
+      const vid = TC_YT_EDU.extractVideoId(decodedInitial);
+      if (vid) {
+        // 空タブを作って、直接再生にスイッチ
+        const newId = createTab(null, true);
+        setTimeout(() => {
+          try { navigateTabYouTubeDirect(newId, decodedInitial, vid); } catch (e) {
+            try { console.warn('[YT-EDU] init direct play error:', e && e.message); } catch {}
+            // 失敗したら通常のプロキシ経路で開く
+            try {
+              const t = tabs.find(x => x.id === newId);
+              if (t) { t.url = fullURL; t.displayUrl = decodedInitial; }
+              setActiveTab(newId);
+            } catch {}
+          }
+        }, 30);
+      } else {
+        createTab(fullURL, false);
+      }
     } else {
-      createTab(fullURL, false);
+      // 既存タブがあれば新しいタブを追加、なければ最初のタブをそのURLに
+      if (tabs.length === 0) {
+        createTab(fullURL, false);
+      } else {
+        createTab(fullURL, false);
+      }
     }
   } else if (tabs.length === 0) {
     createTab(null, false); // ニュータブ
@@ -391,6 +423,23 @@ function navigateTab(tabId, query) {
   } catch {
     url = /^[a-z]+\.[a-z]{2,}$/i.test(query) ? 'https://' + query : ENGINES[currentEngine](query);
   }
+
+  // ★ YouTube の「動画再生通信」だけはプロキシをバイパスして直接接続する
+  //    (Education 用パラメーターを付与した embed iframe を使用)
+  //    検索 / ホーム / チャンネル等の通常通信は既存プロキシを維持する。
+  try {
+    if (typeof TC_YT_EDU !== 'undefined' &&
+        TC_YT_EDU.isYouTubeWatchUrl(url)) {
+      const vid = TC_YT_EDU.extractVideoId(url);
+      if (vid) {
+        navigateTabYouTubeDirect(tabId, url, vid);
+        return;
+      }
+    }
+  } catch (e) {
+    try { console.warn('[YT-EDU] direct play check failed:', e && e.message); } catch {}
+  }
+
   if (typeof __uv$config === 'undefined') { return; }
   window.navigator.serviceWorker.register('/sw.js', { scope: __uv$config.prefix })
     .then(() => {
@@ -417,6 +466,91 @@ function navigateTab(tabId, query) {
       renderTabs();
       addLog(`ナビゲート: ${url.slice(0, 60)}`, 'info');
       setLogStatus('active', 'Loading...');
+    }).catch(err => console.error(err));
+}
+
+// ===== YouTube 動画再生用: プロキシをバイパスして直接接続でロード =====
+// 仕様:
+//  - youtube.com/watch, youtu.be, /embed, /shorts, /live を対象
+//  - edu/N.txt から取得した embed_config 等のパラメーターを付与
+//  - キー取得失敗時もフォールバックで再生継続(素の embed)
+function navigateTabYouTubeDirect(tabId, originalUrl, videoId) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const content = document.querySelector(`.tab-content[data-id="${tabId}"]`);
+  if (!content) return;
+
+  // タブ表示の更新
+  tab.displayUrl = originalUrl;
+  tab.url = originalUrl;
+  tab.isNew = false;
+  tab.title = 'YouTube (Direct)';
+  try { tab.favicon = 'https://www.google.com/s2/favicons?domain=youtube.com&sz=32'; } catch {}
+  const addrEl = document.getElementById('address-input');
+  if (addrEl) addrEl.value = originalUrl;
+  saveTabsToStorage();
+  renderTabs();
+  addLog(`YouTube 直接再生: ${originalUrl.slice(0, 60)}`, 'info');
+  setLogStatus('active', 'Loading (direct)...');
+
+  // 既存内容を iframe に置換
+  content.innerHTML = '';
+  const iframe = document.createElement('iframe');
+  iframe.className = 'browser-frame';
+  iframe.id = 'frame-' + tabId;
+  iframe.setAttribute('allow',
+    'accelerometer; autoplay; clipboard-write; encrypted-media; ' +
+    'gyroscope; picture-in-picture; web-share');
+  iframe.setAttribute('allowfullscreen', '');
+  iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+  iframe.onload = () => {
+    setLogStatus('idle', 'Ready');
+    addLog('YouTube 直接再生: 読み込み完了', 'ok');
+    // 履歴に記録(タイトルは取れない可能性が高いので URL のみ)
+    try {
+      addHistoryEntry({
+        title: 'YouTube - ' + (videoId || ''),
+        url: originalUrl,
+        favicon: 'https://www.google.com/s2/favicons?domain=youtube.com&sz=32'
+      });
+    } catch {}
+  };
+  iframe.onerror = () => {
+    addLog('YouTube 直接再生: 読み込み失敗 → プロキシにフォールバック', 'warn');
+    fallbackToProxy(tabId, originalUrl);
+  };
+  content.appendChild(iframe);
+
+  // Education キーを取得して URL を組み立て (非同期)
+  TC_YT_EDU.buildEmbedUrl(videoId, { autoplay: false })
+    .then(src => { iframe.src = src; })
+    .catch(err => {
+      try { console.warn('[YT-EDU] buildEmbedUrl error:', err && err.message); } catch {}
+      // 最後のフォールバック: 素の embed
+      iframe.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(videoId);
+    });
+}
+
+// プロキシ経由ロードへのフォールバック
+function fallbackToProxy(tabId, url) {
+  if (typeof __uv$config === 'undefined') return;
+  window.navigator.serviceWorker.register('/sw.js', { scope: __uv$config.prefix })
+    .then(() => {
+      const encoded = __uv$config.encodeUrl(url);
+      const proxyUrl = '/service/' + encoded;
+      const tab = tabs.find(t => t.id === tabId);
+      if (!tab) return;
+      const content = document.querySelector(`.tab-content[data-id="${tabId}"]`);
+      if (!content) return;
+      content.innerHTML = '';
+      const iframe = document.createElement('iframe');
+      iframe.className = 'browser-frame';
+      iframe.src = proxyUrl;
+      iframe.id = 'frame-' + tabId;
+      iframe.onload = () => onFrameLoad(tabId, iframe);
+      content.appendChild(iframe);
+      tab.url = proxyUrl;
+      tab.displayUrl = url;
     }).catch(err => console.error(err));
 }
 
