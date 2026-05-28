@@ -53,6 +53,54 @@ node index.js
 
 ## 更新履歴
 
+### v1.3
+
+#### 🛡️ 脆弱性修正（セキュリティ強化リリース）
+既知の脆弱性を網羅的に洗い出し、可能な限り対処した安全性重視のリリース。
+
+##### 📦 依存ライブラリの更新
+- `express` / `body-parser` / `qs` / `ip-address` を更新し、`npm audit` で報告されていた既知の脆弱性 4 件（CVE: qs DoS, ip-address XSS など）を解消。
+- `npm audit` で **0 vulnerabilities** を確認。
+
+##### 🔐 サーバー側（`index.js`）
+- 一般的なセキュリティ HTTP ヘッダーを付与
+  （`X-Content-Type-Options: nosniff` / `X-Frame-Options: SAMEORIGIN` / `Referrer-Policy` / `Permissions-Policy`）。
+- JSON ボディの受信上限を **10MB → 1MB** に縮小し、ペイロード爆撃による DoS を緩和。
+- `PUT /worksheets/data/:filename` を強化：
+  - ファイル名の許可文字から `%` を除外し、URL エンコード経由のディレクトリトラバーサルを遮断。
+  - 先頭 `.` および `..` を明示的に拒否。
+  - パス解決後にデータディレクトリ配下であることを再確認（プラットフォーム差分も考慮）。
+  - リクエストボディが JSON オブジェクト/配列であることを検証。
+  - シリアライズ後 1MB 超のペイロードを拒否。
+  - エラー詳細をクライアントへ返さないよう変更（情報漏洩の防止）。
+  - **IP 単位のレートリミッタ**（毎分 60 リクエスト）を実装。
+
+##### 💬 チャットサーバー（`chatserver.js`）
+- **管理者権限の偽装を修正**：従来はクライアントが `admin: true` を申告するだけで管理者になれたため、サーバー側で環境変数 `CHAT_ADMIN_TOKEN` と照合する方式へ変更。トークン未設定時は admin 機能を無効化（フェイルセーフ）。
+- **Stored XSS の修正**：従来はクライアント送信の `time` 文字列がそのまま `innerHTML` 経由で全端末に描画されていた。`time` / `sender` / `icon` / `id` をすべてサーバー側で生成・正規化するよう変更。
+- WebSocket フレームサイズを **32KB に上限化**（`maxPayload`）。
+- **WebSocket レートリミット**（1 秒 10 件 / 1 分 200 件）を実装。
+- 入力サニタイズを強化：制御文字除去、ユーザー名 32 文字、本文 2000 文字、ルーム ID 安全文字のみ、アイコンは `data:image/*` か同一オリジン相対パスのみ許可（最大 200KB）。
+- 認証前ユーザーの投稿、未参加ルームへの投稿を明示的に拒否。
+
+##### 🎨 クライアント側（`chat.js`）
+- `escapeHtml` にシングルクオートエスケープを追加。
+- `formatText` の URL 自動リンク化を `rel="noopener noreferrer"` 付き＆末尾句読点除去に変更。
+- `msg.id` / `msg.time` / `msg.timeFull` を **すべてエスケープ／サニタイズ**してから `innerHTML` に展開（多層防御）。
+- WebSocket 認証時、`admin` 自己申告フラグを削除し、`adminToken` 方式に統一。
+
+##### 🐳 Docker
+- ベースイメージを `node:18` → `node:20-alpine` に変更（攻撃面の縮小）。
+- `npm ci --omit=dev` で本番依存のみインストール、`npm cache` を削除。
+- **非 root ユーザー (`node`)** でアプリを実行。
+- `NODE_ENV=production` を明示設定。
+
+##### ⚠️ 既知の注意点
+- `wisp-server-node` は upstream で deprecated 警告が出ているが、後継 `@mercuryworkshop/wisp-js` への移行は API 差分が大きく、プロキシ機能の互換性確認が別途必要なため本リリースでは見送り。
+- プロキシ用途のアプリケーションのため、SSRF 的なアクセス自体は機能要件であり制限していません。設置者側でネットワーク的なアクセス制御を行うことを推奨。
+
+---
+
 ### v1.2
 
 #### 🧹 不要データ整理

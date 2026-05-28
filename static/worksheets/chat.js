@@ -51,10 +51,16 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
-/* マークダウン風テキスト変換 */
+/* JS 文字列リテラル / HTML 属性に埋め込む ID 用の厳格なサニタイズ */
+function safeId(id) {
+  return String(id == null ? '' : id).replace(/[^a-zA-Z0-9._-]/g, '');
+}
+
+/* マークダウン風テキスト変換 (XSS 安全: 入力は escapeHtml 済) */
 function formatText(text) {
   let t = escapeHtml(text);
   // **太字**
@@ -65,8 +71,14 @@ function formatText(text) {
   t = t.replace(/`(.+?)`/g, '<code class="code-inline">$1</code>');
   // @メンション
   t = t.replace(/@(\w+)/g, '<span class="mention-tag">@$1</span>');
-  // URL リンク化
-  t = t.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#00b0f4;text-decoration:none;">$1</a>');
+  // URL リンク化 (http/https のみ、エスケープ後の文字列のため `"` 等は出現しない)
+  t = t.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+    // 末尾の句読点を除去
+    const m = url.match(/^(.*?)([.,;:!?)]*)$/);
+    const href = m ? m[1] : url;
+    const tail = m ? m[2] : '';
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#00b0f4;text-decoration:none;">${href}</a>${tail}`;
+  });
   return t;
 }
 
@@ -92,7 +104,9 @@ function connectWS() {
     reconnectCount = 0;
     setWsStatus('connected');
     if (state.selfUser) {
-      wsSend({ type: 'auth', username: state.selfUser.username, icon: state.selfUser.icon || null, admin: state.selfUser.admin === true });
+      // admin はクライアントが自己申告しても無効。adminToken をローカルに保管している場合のみサーバー側で検証される。
+      const adminToken = (typeof localStorage !== 'undefined') ? (localStorage.getItem('tc_admin_token') || '') : '';
+      wsSend({ type: 'auth', username: state.selfUser.username, icon: state.selfUser.icon || null, adminToken });
     }
     // アクティブルームを再参加
     if (state.activeRoomId) {
@@ -380,33 +394,35 @@ function renderMessages(room) {
     const avatarClass   = own ? 'own-avatar' : '';
 
     if (isCompact) {
+      const sid = safeId(msg.id);
       html += `
-        <div class="msg-group compact new-msg" id="msg-${msg.id}">
+        <div class="msg-group compact new-msg" id="msg-${sid}">
           <div class="msg-avatar-wrap">
-            <span class="compact-time">${msg.time}</span>
+            <span class="compact-time">${escapeHtml(msg.time)}</span>
           </div>
           <div class="msg-body">
             <div class="msg-bubble">${formatText(msg.text)}</div>
           </div>
           <div class="msg-actions">
-            ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${msg.id}')" title="削除" style="color:var(--dnd)">🗑</button>` : ''}
+            ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="削除" style="color:var(--dnd)">🗑</button>` : ''}
           </div>
         </div>`;
     } else {
+      const sid = safeId(msg.id);
       html += `
-        <div class="msg-group${own ? ' own' : ''} new-msg" id="msg-${msg.id}" style="margin-top:16px">
+        <div class="msg-group${own ? ' own' : ''} new-msg" id="msg-${sid}" style="margin-top:16px">
           <div class="msg-avatar-wrap">
             <div class="msg-avatar ${avatarClass}">${avatarContent}</div>
           </div>
           <div class="msg-body">
             <div class="msg-header">
               <span class="msg-sender ${senderClass}">${escapeHtml(msg.sender)}</span>
-              <span class="msg-timestamp">${msg.timeFull || msg.time}</span>
+              <span class="msg-timestamp">${escapeHtml(msg.timeFull || msg.time)}</span>
             </div>
             <div class="msg-bubble">${formatText(msg.text)}</div>
           </div>
           <div class="msg-actions">
-            ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${msg.id}')" title="メッセージを削除" style="color:var(--dnd)">🗑</button>` : ''}
+            ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="メッセージを削除" style="color:var(--dnd)">🗑</button>` : ''}
           </div>
         </div>`;
     }
@@ -440,22 +456,23 @@ function appendMessage(msg, room) {
   const avatarClass   = own ? 'own-avatar' : '';
 
   const el = document.createElement('div');
+  const sid = safeId(msg.id);
   if (isCompact) {
     el.className = 'msg-group compact new-msg';
-    el.id = `msg-${msg.id}`;
+    el.id = `msg-${sid}`;
     el.innerHTML = `
       <div class="msg-avatar-wrap">
-        <span class="compact-time">${msg.time}</span>
+        <span class="compact-time">${escapeHtml(msg.time)}</span>
       </div>
       <div class="msg-body">
         <div class="msg-bubble">${formatText(msg.text)}</div>
       </div>
       <div class="msg-actions">
-        ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${msg.id}')" title="削除" style="color:var(--dnd)">🗑</button>` : ''}
+        ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="削除" style="color:var(--dnd)">🗑</button>` : ''}
       </div>`;
   } else {
     el.className = `msg-group${own ? ' own' : ''} new-msg`;
-    el.id = `msg-${msg.id}`;
+    el.id = `msg-${sid}`;
     el.style.marginTop = '16px';
     el.innerHTML = `
       <div class="msg-avatar-wrap">
@@ -464,12 +481,12 @@ function appendMessage(msg, room) {
       <div class="msg-body">
         <div class="msg-header">
           <span class="msg-sender${own ? ' own-sender' : ''}">${escapeHtml(msg.sender)}</span>
-          <span class="msg-timestamp">${msg.timeFull || msg.time}</span>
+          <span class="msg-timestamp">${escapeHtml(msg.timeFull || msg.time)}</span>
         </div>
         <div class="msg-bubble">${formatText(msg.text)}</div>
       </div>
       <div class="msg-actions">
-        ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${msg.id}')" title="メッセージを削除" style="color:var(--dnd)">🗑</button>` : ''}
+        ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="メッセージを削除" style="color:var(--dnd)">🗑</button>` : ''}
       </div>`;
   }
 
