@@ -799,8 +799,8 @@ async function doRegister() {
   } catch(e) { err.textContent = e.message; }
 }
 
-function doLogout() {
-  TC_ACCOUNT.logout();
+async function doLogout() {
+  await TC_ACCOUNT.logout();
   closeAccountDropdown();
   renderAccountNav();
   applyBgFromAccount();
@@ -844,18 +844,12 @@ async function saveAccountSettings() {
   const fields = { icon: newIcon };
   if (newPass) {
     if (newPass.length < 6) { err.textContent = 'パスワードは6文字以上にしてください'; return; }
-    // hash (同じ方式をaccount.jsが使うのでここでは保持するだけ)
-    const h = hashDjb2(newPass);
-    fields.passwordHash = h;
+    // パスワードはサーバーで scrypt ハッシュ化される（平文のまま送る・HTTPS 前提）
+    fields.password = newPass;
   }
   await TC_ACCOUNT.updateAccount(fields);
   document.getElementById('acct-settings-modal').classList.remove('open');
   renderAccountNav();
-}
-function hashDjb2(str) {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
-  return (h >>> 0).toString(16);
 }
 async function confirmDeleteAccount() {
   const user = TC_ACCOUNT.currentAccount();

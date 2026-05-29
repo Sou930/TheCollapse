@@ -1,85 +1,60 @@
 // =====================================================
-//  TheCollapse — Account Manager
-//  全ページ共通で読み込む。アカウントデータは
-//  worksheets/data/<username>.json へ保存する。
+//  TheCollapse — Account Manager (server-auth edition)
+//  全ページ共通で読み込む。
+//  認証はサーバー側 (/api/auth/*) で行い、パスワードは
+//  scrypt + salt でハッシュ化してサーバーが保持する。
+//  セッションは HttpOnly Cookie で管理されるため、
+//  クライアント側にパスワードハッシュを一切保持しない。
+//  ユーザーデータは worksheets/data/<username>.json に保存し、
+//  サーバーがログイン中の本人のみ読み書きを許可する。
 //  ゲスト時は localStorage にフォールバック。
 // =====================================================
 
 const TC_ACCOUNT = (() => {
   // ---- 内部状態 ----
-  let _current = null; // { username, passwordHash, icon, bg, createdAt }
-
-  // ---- ユーティリティ ----
-  function _hash(str) {
-    // 単純な djb2 ハッシュ（サーバー不要のクライアント専用）
-    let h = 5381;
-    for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
-    return (h >>> 0).toString(16);
-  }
+  // _current は { username, icon, bg, createdAt, admin } など公開情報のみ。
+  // パスワードハッシュは保持しない。
+  let _current = null;
 
   function _dataPath(username) {
-    // 絶対パスを使用（index.html / go.html どちらから呼ばれても正しいパスになる）
     return `/worksheets/data/${encodeURIComponent(username)}.json`;
   }
 
-  // ---- アカウント一覧（サーバー + localStorage 二重管理） ----
-  const ACCOUNTS_PATH = '/worksheets/data/account.json';
-
-  function getAccountList() {
-    try { return JSON.parse(localStorage.getItem('tc_accounts') || '[]'); } catch { return []; }
-  }
-  function saveAccountList(list) {
-    localStorage.setItem('tc_accounts', JSON.stringify(list));
-    // サーバーにも保存（URLが変わっても読める）
-    fetch(ACCOUNTS_PATH, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(list, null, 2),
-    }).catch(() => {});
+  // すべての認証/データ系 fetch は Cookie を送るため credentials:'same-origin'
+  function _fetch(url, opts = {}) {
+    return fetch(url, { credentials: 'same-origin', ...opts });
   }
 
-  // サーバーからアカウント一覧を取得してlocalStorageにマージする
-  async function _syncAccountList() {
-    try {
-      const res = await fetch(ACCOUNTS_PATH, { cache: 'no-store' });
-      if (!res.ok) return;
-      const serverList = await res.json();
-      if (!Array.isArray(serverList)) return;
-      const localList = getAccountList();
-      // サーバー優先でマージ（usernameをキーに）
-      const merged = [...serverList];
-      for (const local of localList) {
-        if (!merged.find(a => a.username === local.username)) {
-          merged.push(local);
-        }
-      }
-      localStorage.setItem('tc_accounts', JSON.stringify(merged));
-    } catch {}
+  async function _api(path, { method = 'GET', body } = {}) {
+    const res = await _fetch(path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
+    });
+    let data = null;
+    try { data = await res.json(); } catch {}
+    if (!res.ok) {
+      const msg = (data && data.error) ? data.error : `エラー (${res.status})`;
+      throw new Error(msg);
+    }
+    return data;
   }
 
-  // ---- データファイル読み書き ----
-  async function _readData(username) {
-    try {
-      const res = await fetch(_dataPath(username), { cache: 'no-store' });
-      if (!res.ok) return _defaultData(username);
-      return await res.json();
-    } catch { return _defaultData(username); }
-  }
-
+  // ---- データファイル既定値 ----
   function _defaultData(username) {
     return { username, history: [], bookmarks: [], tabs: [], tabCounter: 0, searchEngine: 'google', bg: null };
   }
 
-  // 書き込み用内部ヘルパー
+  // 書き込み用内部ヘルパー（本人のファイルのみ。サーバーが認可）
   async function _writeDataImmediate(username, data) {
-    // まず ./data/<username>.json へのファイル書き込みを試みる
     let serverOk = false;
     try {
-      const res = await fetch(_dataPath(username), {
+      const res = await _fetch(_dataPath(username), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data, null, 2),
-        keepalive: true, // ページ離脱時も送信完了を保証
+        keepalive: true,
       });
       if (res.ok) serverOk = true;
     } catch {}
@@ -104,8 +79,8 @@ const TC_ACCOUNT = (() => {
     return serverOk;
   }
 
-  // デバウンス書き込み（500ms）。同じユーザの連続書きをまとめる
-  const _pendingWrites = new Map(); // username -> { data, timer, promise, resolve }
+  // デバウンス書き込み（500ms）
+  const _pendingWrites = new Map();
   function _writeData(username, data, { immediate = false } = {}) {
     if (immediate) {
       const p = _pendingWrites.get(username);
@@ -131,7 +106,6 @@ const TC_ACCOUNT = (() => {
     return entry.promise;
   }
 
-  // ペンディング書き込みを即時実行（ページ離脱前）
   async function _flushPendingWrites() {
     const entries = [..._pendingWrites.entries()];
     _pendingWrites.clear();
@@ -165,25 +139,21 @@ const TC_ACCOUNT = (() => {
   }
 
   async function _getData(username) {
-    // まずファイルから読み込みを試みる
+    // サーバー（本人のみ許可）からの読み込みを試みる
     try {
-      const res = await fetch(_dataPath(username), { cache: 'no-store' });
+      const res = await _fetch(_dataPath(username), { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         if (json && json.username) return json;
       }
     } catch {}
-
-    // フォールバック: IndexedDB から読み込む
+    // フォールバック: IndexedDB
     const idb = await _readIDB(username);
     if (idb) return idb;
-
     return _defaultData(username);
   }
 
   // ---- UV Cookie IndexedDB ヘルパー ----
-  // UVはIndexedDB ".__op" の "cookies" ストアにcookieを保存している
-
   function _openUVIDB() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open('__op', 1);
@@ -217,15 +187,12 @@ const TC_ACCOUNT = (() => {
       await new Promise((resolve, reject) => {
         const tx = db.transaction('cookies', 'readwrite');
         const store = tx.objectStore('cookies');
-        // 既存を全クリアしてから書き込む（古いcookieで上書きを防ぐ）
         const clearReq = store.clear();
         clearReq.onsuccess = () => {
           const now = Date.now();
           for (const cookie of cookies) {
-            // 期限切れのcookieはスキップ
             try {
               if (cookie.set !== undefined && cookie.set !== null) {
-                // cookie.set は数値タイムスタンプ・文字列・Dateオブジェクト等を想定
                 const rawSet = cookie.set;
                 const setTime = (typeof rawSet === 'number')
                   ? rawSet
@@ -241,8 +208,6 @@ const TC_ACCOUNT = (() => {
                 if (!isNaN(exp.getTime()) && exp.getTime() < now) continue;
               }
             } catch { /* 解析失敗時はそのまま保存 */ }
-            // JSON経由でDate→Stringに変換されたフィールドを元のDateオブジェクトに復元する
-            // UVは cookie.set.getTime() を呼ぶため、必ずDateオブジェクトでなければならない
             const cookieToStore = { ...cookie };
             if (cookieToStore.set !== undefined && cookieToStore.set !== null && !(cookieToStore.set instanceof Date)) {
               try {
@@ -286,149 +251,104 @@ const TC_ACCOUNT = (() => {
 
   // ---- 公開 API ----
   const API = {
-    // 現在ログイン中のユーザー名（null = ゲスト）
     currentUser: () => _current ? _current.username : null,
     currentAccount: () => _current,
 
-    // アカウント作成
+    // アカウント作成（サーバーで scrypt ハッシュ化・セッション発行）
     async createAccount(username, password, iconDataUrl) {
       if (!username || !password) throw new Error('ユーザー名とパスワードは必須です');
-      // サーバーのアカウント一覧と同期してから重複チェック・追加を行う
-      // （同期しないとlocalStorageが空の場合にサーバー側の既存データが上書きされるバグを防ぐ）
-      await _syncAccountList();
-      const list = getAccountList();
-      if (list.find(a => a.username === username)) throw new Error('そのユーザー名はすでに使われています');
-      const account = {
-        username,
-        passwordHash: _hash(password),
-        icon: iconDataUrl || null,
-        bg: null,
-        createdAt: Date.now(),
-      };
-      list.push(account);
-      saveAccountList(list);
-      // データ初期化（passwordHashも含めてデータファイルに保存）
+      const data = await _api('/api/auth/register', {
+        method: 'POST',
+        body: { username, password, icon: iconDataUrl || null },
+      });
+      // 登録と同時にサーバーがセッション Cookie を設定する
+      _current = data.user;
+      localStorage.setItem('tc_active_user', _current.username);
+      // データファイル初期化
       const initData = _defaultData(username);
-      initData.passwordHash = account.passwordHash;
-      initData.icon = account.icon || null;
-      initData.createdAt = account.createdAt;
+      initData.icon = _current.icon || null;
+      initData.createdAt = _current.createdAt;
       await _writeData(username, initData);
-      return account;
+      return _current;
     },
 
     // ログイン
     async login(username, password) {
-      // まずサーバーのアカウント一覧と同期してからログイン
-      await _syncAccountList();
-      let list = getAccountList();
-      let account = list.find(a => a.username === username);
-
-      // アカウントリストに見つからない場合、データファイルから直接照合する
-      if (!account) {
-        try {
-          const res = await fetch(_dataPath(username), { cache: 'no-store' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.username === username && data.passwordHash) {
-              account = {
-                username: data.username,
-                passwordHash: data.passwordHash,
-                icon: data.icon || null,
-                bg: data.bg || null,
-                createdAt: data.createdAt || Date.now(),
-              };
-              // アカウントリストにも追加して次回以降高速化
-              list.push(account);
-              saveAccountList(list);
-            }
-          }
-        } catch {}
-      }
-
-      if (!account) throw new Error('ユーザーが見つかりません');
-      if (account.passwordHash !== _hash(password)) throw new Error('パスワードが違います');
-      _current = { ...account };
-      // データファイルから searchEngine を読み込んでキャッシュ
+      if (!username || !password) throw new Error('ユーザー名とパスワードは必須です');
+      const data = await _api('/api/auth/login', {
+        method: 'POST',
+        body: { username, password },
+      });
+      _current = data.user;
+      // searchEngine をキャッシュ
       try {
         const d = await _getData(username);
         if (d.searchEngine) _current.engine = d.searchEngine;
       } catch {}
       localStorage.setItem('tc_active_user', username);
-      return account;
+      return _current;
     },
 
     // ログアウト
-    logout() {
+    async logout() {
+      try { await _api('/api/auth/logout', { method: 'POST' }); } catch {}
       _current = null;
       localStorage.removeItem('tc_active_user');
     },
 
-    // セッション復元
+    // セッション復元（サーバーの Cookie セッションを参照）
     async restoreSession() {
-      const saved = localStorage.getItem('tc_active_user');
-      if (!saved) return false;
-      // サーバーと同期してからアカウントを探す
-      await _syncAccountList();
-      let list = getAccountList();
-      let account = list.find(a => a.username === saved);
-
-      // リストになければデータファイルから復元を試みる
-      if (!account) {
-        try {
-          const res = await fetch(_dataPath(saved), { cache: 'no-store' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.username === saved) {
-              account = {
-                username: data.username,
-                passwordHash: data.passwordHash || '',
-                icon: data.icon || null,
-                bg: data.bg || null,
-                createdAt: data.createdAt || Date.now(),
-              };
-              list.push(account);
-              saveAccountList(list);
-            }
-          }
-        } catch {}
-      }
-
-      if (!account) return false;
-      _current = { ...account };
-      // データファイルから searchEngine を読み込んでキャッシュ
       try {
-        const d = await _getData(saved);
-        if (d.searchEngine) _current.engine = d.searchEngine;
+        const data = await _api('/api/auth/me');
+        if (data && data.user) {
+          _current = data.user;
+          try {
+            const d = await _getData(_current.username);
+            if (d.searchEngine) _current.engine = d.searchEngine;
+          } catch {}
+          localStorage.setItem('tc_active_user', _current.username);
+          return true;
+        }
       } catch {}
-      return true;
+      _current = null;
+      localStorage.removeItem('tc_active_user');
+      return false;
     },
 
-    // アカウント情報更新（アイコン・背景など）
+    // アカウント情報更新（アイコン・背景・パスワード）。サーバーで本人確認。
     async updateAccount(fields) {
       if (!_current) return;
-      const list = getAccountList();
-      const idx = list.findIndex(a => a.username === _current.username);
-      if (idx === -1) return;
-      Object.assign(list[idx], fields);
-      _current = list[idx];
-      saveAccountList(list);
+      const body = {};
+      if ('icon' in fields) body.icon = fields.icon;
+      if ('bg' in fields) body.bg = fields.bg;
+      // 旧実装の passwordHash は廃止。新しいパスワードは平文をサーバーに送り
+      // サーバー側で scrypt ハッシュ化する（HTTPS 前提）。
+      if ('password' in fields && fields.password) body.password = fields.password;
+      if (Object.keys(body).length === 0) return;
+      try {
+        const data = await _api('/api/auth/update', { method: 'POST', body });
+        if (data && data.user) {
+          const engine = _current.engine;
+          _current = data.user;
+          if (engine) _current.engine = engine;
+        }
+      } catch (e) {
+        throw e;
+      }
     },
 
-    // アカウント削除
+    // アカウント削除（サーバーでパスワード再確認）
     async deleteAccount(username, password) {
-      const list = getAccountList();
-      const account = list.find(a => a.username === username);
-      if (!account) throw new Error('ユーザーが見つかりません');
-      if (account.passwordHash !== _hash(password)) throw new Error('パスワードが違います');
-      const newList = list.filter(a => a.username !== username);
-      saveAccountList(newList);
-      if (_current?.username === username) {
+      // username 引数は互換のために受けるが、サーバーはセッションの本人のみ削除する
+      await _api('/api/auth/delete', { method: 'POST', body: { password } });
+      if (_current && _current.username === username) {
         _current = null;
         localStorage.removeItem('tc_active_user');
       }
     },
 
-    getAccountList,
+    // 旧 API 互換: アカウント一覧はクライアントに公開しない
+    getAccountList() { return []; },
 
     // ---- データ操作（ログイン状態で自動切替） ----
     async getHistory() {
@@ -471,9 +391,7 @@ const TC_ACCOUNT = (() => {
     },
     async saveEngine(v) {
       if (!_current) { GUEST.saveEngine(v); return; }
-      // メモリキャッシュを更新
       _current.engine = v;
-      // データファイルに searchEngine として永続化
       const d = await _getData(_current.username);
       d.searchEngine = v;
       await _writeData(_current.username, d);
@@ -488,7 +406,6 @@ const TC_ACCOUNT = (() => {
     },
 
     // ---- UV Cookie 保存・復元（ログインユーザーのみ）----
-    // UVのcookieはIndexedDB ".__op" > "cookies" ストアに入っている
     async saveCookies() {
       if (!_current) return;
       try {
@@ -513,12 +430,10 @@ const TC_ACCOUNT = (() => {
       }
     },
 
-    // ペンディング書き込みを即時実行（ログアウト/ページ離脱時等）
     async flush() {
       await _flushPendingWrites();
     },
 
-    // 外部からの履歴追加（ログインユーザのファイルに直接追加）
     async appendHistoryEntry(entry) {
       if (!_current) {
         const cur = GUEST.getHistory();
@@ -528,7 +443,6 @@ const TC_ACCOUNT = (() => {
       }
       const d = await _getData(_current.username);
       d.history = d.history || [];
-      // 連続重複を防ぐ
       const last = d.history[0];
       if (last && last.url === entry.url && (Date.now() - last.time) < 5000) return;
       d.history.unshift(entry);
@@ -538,14 +452,10 @@ const TC_ACCOUNT = (() => {
   };
 
   // ── 自動保存 ─────────────────────────────────
-  // ページ離脱時（pagehide / beforeunload）に、
-  //  - 未書き込みデータをフラッシュ
-  //  - UV Cookie を最終保存（アカウントに紐付）
   if (typeof window !== 'undefined') {
     const _finalSave = async () => {
       try {
         if (_current) {
-          // UV Cookie を積み込む（書き込みは flush で確実に実行）
           try {
             const cookies = await _readUVCookiesFromIDB();
             const d = await _getData(_current.username);
@@ -560,10 +470,8 @@ const TC_ACCOUNT = (() => {
     };
     window.addEventListener('pagehide', _finalSave);
     window.addEventListener('beforeunload', () => {
-      // 同期 sendBeacon 相当として keepalive fetch を利用するため、最後の flush を必ず発火
       _flushPendingWrites();
     });
-    // 定期的に UV Cookie をアカウントに同期（30秒ごと）
     setInterval(async () => {
       if (!_current) return;
       try {
