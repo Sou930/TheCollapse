@@ -7,9 +7,11 @@ const socksProxyAgent = new SocksProxyAgent("socks://localhost:40000");
 import { uvPath } from "@titaniumnetwork-dev/ultraviolet";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
-import { writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { attachChatServer, CHAT_WS_PATH } from "./static/worksheets/chatserver.js";
+import { attachAuthRoutes, getSessionUser } from "./auth.js";
 
 const publicPath = fileURLToPath(new URL("./static/", import.meta.url));
 const dataPath = fileURLToPath(new URL("./static/worksheets/data/", import.meta.url));
@@ -40,6 +42,59 @@ app.use((err, req, res, next) => {
   }
   next(err);
 });
+// 認証 API（登録 / ログイン / ログアウト / me / update / delete）
+attachAuthRoutes(app);
+
+/* ── ユーザーデータファイルへの読み取り保護 ──────────────────
+   static 配信より前に置き、/worksheets/data/ 配下の個人データファイルが
+   無認証で誰でも GET できる問題（パスワードハッシュ等の漏洩）を塞ぐ。
+   - account.json（旧・脆弱な平文ハッシュ一覧）は一切配信しない
+   - <username>.json はログイン中の本人のみ GET 可能           */
+app.get("/worksheets/data/:filename", async (req, res, next) => {
+  const filename = req.params.filename;
+  if (!/^[a-zA-Z0-9._-]+\.json$/.test(filename) || filename.includes("..")) {
+    return res.status(400).json({ error: "Invalid filename" });
+  }
+  // 旧アカウント一覧は機微情報を含むため完全非公開
+  if (filename === "account.json") {
+    return res.status(404).json({ error: "Not Found" });
+  }
+  const username = getSessionUser(req);
+  if (!username) {
+    return res.status(401).json({ error: "ログインが必要です" });
+  }
+  // 自分のデータファイルのみ許可
+  if (filename !== `${username}.json`) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  try {
+    const filePath = resolve(join(dataPath, filename));
+    const baseResolved = resolve(dataPath);
+    if (
+      filePath !== baseResolved &&
+      !filePath.startsWith(baseResolved + (process.platform === "win32" ? "\\" : "/"))
+    ) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (!existsSync(filePath)) return res.status(404).json({ error: "Not Found" });
+    const raw = await readFile(filePath, "utf8");
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(raw);
+  } catch (e) {
+    console.error("data read error:", e);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// data ディレクトリ全体の静的配信を無効化（一覧/直リンクでの漏洩防止）。
+// 個別ファイルの GET は上の認可付きハンドラ経由でのみ。
+// PUT（書き込み）は後段の認可付きハンドラに委ねるため、ここでは素通しする。
+app.use("/worksheets/data", (req, res, next) => {
+  if (req.method === "PUT") return next();
+  res.status(404).json({ error: "Not Found" });
+});
+
 app.use(express.static(publicPath));
 app.use("/worksheets/uv/", express.static(uvPath));
 app.use("/uv/", express.static(uvPath));
@@ -88,6 +143,16 @@ app.put("/worksheets/data/:filename", rateLimit, async (req, res) => {
       return res.status(400).json({ error: "Invalid filename" });
     }
 
+    // ── 認可: ログイン中の本人のデータファイルのみ書き込み可 ──
+    // 旧実装では誰でも任意ユーザーのファイルを上書きでき、なりすまし・改ざんが可能だった。
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) {
+      return res.status(401).json({ error: "ログインが必要です" });
+    }
+    if (filename !== `${sessionUser}.json`) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
     const filePath = resolve(join(dataPath, filename));
     // dataPath の外へのアクセスを禁止（path.resolve 後に再確認）
     const baseResolved = resolve(dataPath);
@@ -103,8 +168,17 @@ app.put("/worksheets/data/:filename", rateLimit, async (req, res) => {
       return res.status(400).json({ error: "Body must be a JSON object or array" });
     }
 
+    // 認証関連の機微フィールドはデータファイルに保存させない
+    // （認証情報は auth-data/auth.json でサーバーが一元管理する）
+    const body = req.body;
+    if (body && !Array.isArray(body)) {
+      for (const k of ["passwordHash", "salt", "hash", "password", "admin"]) {
+        if (k in body) delete body[k];
+      }
+    }
+
     // シリアライズ後サイズで再チェック（1MB）
-    const serialized = JSON.stringify(req.body, null, 2);
+    const serialized = JSON.stringify(body, null, 2);
     if (serialized.length > 1024 * 1024) {
       return res.status(413).json({ error: "Payload too large" });
     }

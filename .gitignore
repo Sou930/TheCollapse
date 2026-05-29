@@ -1,6 +1,10 @@
 node_modules/
 # チャットのランタイム永続化データ
 static/worksheets/data/chat/
+# サーバー側認証情報（パスワードハッシュ等の機微データ。配信・コミット禁止）
+auth-data/
+# ユーザーデータファイル（個人データ。サーバーが本人のみアクセス許可）
+static/worksheets/data/*.json
 # 環境変数
 .env
 # OS / エディタ
