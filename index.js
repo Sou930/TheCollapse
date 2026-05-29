@@ -34,14 +34,6 @@ app.use((req, res, next) => {
 
 // JSON ペイロードを 1MB に制限し、リクエスト爆撃による DoS を抑止
 app.use(express.json({ limit: "1mb" }));
-// 不正な JSON や巨大ペイロード時に Express 既定のスタックトレース付き
-// HTML エラーページを返さないようにする（情報漏洩防止）
-app.use((err, req, res, next) => {
-  if (err && (err.type === "entity.parse.failed" || err.type === "entity.too.large")) {
-    return res.status(err.status || 400).json({ error: "Invalid request body" });
-  }
-  next(err);
-});
 // 認証 API（登録 / ログイン / ログアウト / me / update / delete）
 attachAuthRoutes(app);
 
@@ -52,7 +44,15 @@ attachAuthRoutes(app);
    - <username>.json はログイン中の本人のみ GET 可能           */
 app.get("/worksheets/data/:filename", async (req, res, next) => {
   const filename = req.params.filename;
-  if (!/^[a-zA-Z0-9._-]+\.json$/.test(filename) || filename.includes("..")) {
+  // NUL バイト・トラバーサル・先頭ドットを拒否し、許可文字と拡張子を厳格化
+  if (
+    typeof filename !== "string" ||
+    filename.length > 128 ||
+    filename.includes("\0") ||
+    filename.startsWith(".") ||
+    filename.includes("..") ||
+    !/^[a-zA-Z0-9._-]+\.json$/.test(filename)
+  ) {
     return res.status(400).json({ error: "Invalid filename" });
   }
   // 旧アカウント一覧は機微情報を含むため完全非公開
@@ -135,11 +135,15 @@ app.put("/worksheets/data/:filename", rateLimit, async (req, res) => {
     // ディレクトリトラバーサル対策
     // `%` を許可していると `%2e%2e` 等が二段デコードで悪用されうるため許可文字を厳格化。
     // 半角英数字 / アンダースコア / ハイフン / ドット のみ、拡張子は .json 固定。
-    if (!/^[a-zA-Z0-9._-]+\.json$/.test(filename)) {
-      return res.status(400).json({ error: "Invalid filename" });
-    }
-    // 先頭ドット (隠しファイル) や `..` を含むファイル名を明示的に拒否
-    if (filename.startsWith(".") || filename.includes("..")) {
+    // NUL バイト・先頭ドット (隠しファイル)・`..`・過長名も明示的に拒否。
+    if (
+      typeof filename !== "string" ||
+      filename.length > 128 ||
+      filename.includes("\0") ||
+      filename.startsWith(".") ||
+      filename.includes("..") ||
+      !/^[a-zA-Z0-9._-]+\.json$/.test(filename)
+    ) {
       return res.status(400).json({ error: "Invalid filename" });
     }
 
@@ -193,6 +197,19 @@ app.put("/worksheets/data/:filename", rateLimit, async (req, res) => {
   }
 });
 
+/* ── 最終エラーハンドラ（必ず全ルートの後に登録する）──────────
+   不正な JSON / 巨大ペイロード / 予期せぬ例外で Express 既定の
+   スタックトレース付き HTML エラーページが返るのを防ぐ（情報漏洩防止）。
+   4 引数シグネチャにすることで Express がエラーミドルウェアと認識する。 */
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err && (err.type === "entity.parse.failed" || err.type === "entity.too.large")) {
+    return res.status(err.status || 400).json({ error: "Invalid request body" });
+  }
+  console.error("unhandled error:", err && err.stack ? err.stack : err);
+  res.status(500).json({ error: "Internal Server Error" });
+});
+
 const server = createServer();
 
 server.on("request", (req, res) => {
@@ -206,7 +223,13 @@ server.on("request", (req, res) => {
 server.on("upgrade", (req, socket, head) => {
   // チャットWebSocketは chatserver.js が自身で upgrade を処理するため除外
   let pathname = "";
-  try { pathname = new URL(req.url, `http://${req.headers.host || "localhost"}`).pathname; } catch {}
+  try {
+    pathname = new URL(req.url, `http://${req.headers.host || "localhost"}`).pathname;
+  } catch {
+    // URL 解析に失敗した upgrade はどのハンドラも処理できないため即座に破棄
+    try { socket.destroy(); } catch {}
+    return;
+  }
   if (pathname === CHAT_WS_PATH) return; // chatserver.js が処理
 
   if (bare.shouldRoute(req)) {

@@ -69,15 +69,18 @@ function formatText(text) {
   t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
   // `コード`
   t = t.replace(/`(.+?)`/g, '<code class="code-inline">$1</code>');
-  // @メンション
-  t = t.replace(/@(\w+)/g, '<span class="mention-tag">@$1</span>');
-  // URL リンク化 (http/https のみ、エスケープ後の文字列のため `"` 等は出現しない)
+  // @メンション（直前が英数字/スラッシュでない場合のみ＝URL末尾の @ を巻き込まない）
+  t = t.replace(/(^|[^a-zA-Z0-9_/])@(\w+)/g, '$1<span class="mention-tag">@$2</span>');
+  // URL リンク化 (http/https のみ)。
+  // 入力は escapeHtml 済みのため `"` `'` `<` `>` は実体参照化されており、
+  // 属性ブレイクアウトは発生しない。href へはさらにクオート類を除去し二重防御。
   t = t.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
     // 末尾の句読点を除去
     const m = url.match(/^(.*?)([.,;:!?)]*)$/);
     const href = m ? m[1] : url;
     const tail = m ? m[2] : '';
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#00b0f4;text-decoration:none;">${href}</a>${tail}`;
+    const safeHref = href.replace(/["'`]/g, '');
+    return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="color:#00b0f4;text-decoration:none;">${href}</a>${tail}`;
   });
   return t;
 }
