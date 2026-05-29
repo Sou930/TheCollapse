@@ -15,6 +15,7 @@ import { attachAuthRoutes, getSessionUser } from "./auth.js";
 
 const publicPath = fileURLToPath(new URL("./static/", import.meta.url));
 const dataPath = fileURLToPath(new URL("./static/worksheets/data/", import.meta.url));
+const readmePath = fileURLToPath(new URL("./readme.md", import.meta.url));
 const bare = createBareServer("/bare/", {});
 const app = express();
 dotenv.config();
@@ -93,6 +94,33 @@ app.get("/worksheets/data/:filename", async (req, res, next) => {
 app.use("/worksheets/data", (req, res, next) => {
   if (req.method === "PUT") return next();
   res.status(404).json({ error: "Not Found" });
+});
+
+/* ── News API（readme.md の更新履歴を配信）─────────────────
+   readme.md の内容をそのまま返す軽量エンドポイント。
+   フロント側（news.html）で Markdown をパースして表示する。
+   小さなキャッシュを持たせ、ファイル更新時刻が変わったら読み直す。 */
+let _readmeCache = { mtimeMs: 0, content: "" };
+app.get("/api/news", async (req, res) => {
+  try {
+    const { statSync } = await import("node:fs");
+    let mtimeMs = 0;
+    try {
+      mtimeMs = statSync(readmePath).mtimeMs;
+    } catch {
+      return res.status(404).json({ error: "readme.md not found" });
+    }
+    if (_readmeCache.mtimeMs !== mtimeMs || !_readmeCache.content) {
+      const raw = await readFile(readmePath, "utf8");
+      _readmeCache = { mtimeMs, content: raw };
+    }
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    res.send(_readmeCache.content);
+  } catch (e) {
+    console.error("news read error:", e);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 app.use(express.static(publicPath));
