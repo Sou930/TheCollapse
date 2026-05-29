@@ -1124,3 +1124,228 @@ body {
   .sidebar { display: none; }
   .members-panel { display: none; }
 }
+/* ============================================================
+   v1.3.4 チャット拡張: 編集 / 返信 / リアクション / 削除確認
+   ============================================================ */
+
+/* ── アクションバーのボタン拡張 ─────────────────────────── */
+.msg-actions { gap: 1px; }
+.msg-action-btn { font-size: 15px; }
+
+/* ── 編集済みバッジ ──────────────────────────────────────── */
+.edited-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  user-select: none;
+}
+
+/* ── インライン編集フォーム ──────────────────────────────── */
+.msg-edit-form { margin-top: 2px; }
+.msg-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  background: var(--surface, #383a40);
+  color: var(--text, #dbdee1);
+  border: 1px solid rgba(88,101,242,0.6);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 15px;
+  line-height: 1.4;
+  font-family: inherit;
+  outline: none;
+}
+.msg-edit-input:focus { border-color: #5865f2; }
+.msg-edit-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.msg-edit-hint a { color: #00b0f4; text-decoration: none; }
+.msg-edit-hint a:hover { text-decoration: underline; }
+
+/* ── 返信(引用)プレビュー (メッセージ上部) ───────────────── */
+.msg-reply-ref {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px 56px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  max-width: calc(100% - 72px);
+}
+.msg-reply-ref:hover .reply-ref-snippet,
+.msg-reply-ref:hover .reply-ref-sender { color: var(--text); }
+.msg-reply-ref svg { flex-shrink: 0; opacity: 0.7; }
+.reply-ref-sender { font-weight: 600; color: #5865f2; flex-shrink: 0; }
+.reply-ref-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 入力欄上の返信バー ──────────────────────────────────── */
+.reply-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--surface, #2b2d31);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.reply-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.reply-bar-info b { color: #5865f2; }
+.reply-bar-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+.reply-bar-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.reply-bar-close:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+
+/* ── リアクションチップ (既存 .reaction を拡張) ──────────── */
+.reaction { user-select: none; }
+.reaction.mine {
+  background: rgba(88,101,242,0.35);
+  border-color: #5865f2;
+}
+.reaction.mine .reaction-count { color: var(--text); }
+.reaction-emoji { font-size: 14px; line-height: 1; }
+
+/* ── リアクションピッカー (メッセージ内ポップオーバー) ───── */
+.reaction-picker {
+  position: absolute;
+  right: 16px;
+  top: 18px;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 280px;
+  background: var(--sidebar-bg, #2b2d31);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.reaction-picker-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, transform 0.1s;
+}
+.reaction-picker-btn:hover { background: rgba(88,101,242,0.25); transform: scale(1.15); }
+
+/* ── 返信元ジャンプ時のハイライト ────────────────────────── */
+.msg-highlight {
+  animation: tcHighlight 1.6s ease;
+  border-radius: 6px;
+}
+@keyframes tcHighlight {
+  0%   { background: rgba(88,101,242,0.30); }
+  100% { background: transparent; }
+}
+
+/* ── 削除/汎用 確認モーダル ──────────────────────────────── */
+.tc-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+.tc-confirm {
+  width: min(420px, 92vw);
+  background: var(--sidebar-bg, #313338);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+.tc-confirm-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-header, #f2f3f5);
+  margin-bottom: 10px;
+}
+.tc-confirm-message {
+  font-size: 14px;
+  color: var(--text, #dbdee1);
+  line-height: 1.5;
+}
+.tc-confirm-preview {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.25);
+  border-left: 3px solid var(--dnd, #f23f43);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow: auto;
+}
+.tc-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+.tc-confirm-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.tc-confirm-btn.cancel {
+  background: transparent;
+  color: var(--text);
+}
+.tc-confirm-btn.cancel:hover { text-decoration: underline; }
+.tc-confirm-btn.ok {
+  background: #5865f2;
+  color: #fff;
+}
+.tc-confirm-btn.ok:hover { background: #4752c4; }
+.tc-confirm-btn.danger {
+  background: var(--dnd, #f23f43);
+  color: #fff;
+}
+.tc-confirm-btn.danger:hover { background: #c93b3e; }

@@ -26,6 +26,11 @@ let wsReady   = false;
 let reconnectTimer = null;
 let reconnectCount = 0;
 
+/* リアクション用の絵文字（サーバー側 ALLOWED_REACTIONS と一致させること） */
+const REACTION_EMOJIS = [
+  '👍','👎','❤️','🔥','😂','😮','😢','🎉','👀','🙏','💯','✨','😍','🤔','👏','🚀',
+];
+
 /* ── アプリ状態 ──────────────────────────────────────────── */
 let state = {
   activeRoomId: null,
@@ -35,6 +40,9 @@ let state = {
   searchQuery: '',
   selfUser:    null,
   notifications: true,
+  replyTo:     null,   // null | { id, sender, snippet }
+  editingId:   null,   // インライン編集中のメッセージID
+  reactionPickerFor: null, // リアクションピッカーを開いているメッセージID
 };
 
 /* ── ユーティリティ ──────────────────────────────────────── */
@@ -224,6 +232,36 @@ function handleWsMessage(msg) {
       break;
     }
 
+    case 'message_edited': {
+      const room = getRoom(msg.roomId);
+      if (!room) break;
+      const target = room.messages.find(m => String(m.id) === String(msg.messageId));
+      if (target) {
+        target.text   = msg.text;
+        target.edited = true;
+        // この編集済みメッセージを引用している返信のスニペットも追従更新
+        for (const m of room.messages) {
+          if (m.replyTo && String(m.replyTo.id) === String(target.id)) {
+            m.replyTo.snippet = msg.text.slice(0, 120);
+          }
+        }
+        if (state.editingId === String(target.id)) state.editingId = null;
+        if (msg.roomId === state.activeRoomId) renderMessages(room);
+      }
+      break;
+    }
+
+    case 'reactions_updated': {
+      const room = getRoom(msg.roomId);
+      if (!room) break;
+      const target = room.messages.find(m => String(m.id) === String(msg.messageId));
+      if (target) {
+        target.reactions = msg.reactions || {};
+        if (msg.roomId === state.activeRoomId) renderMessages(room);
+      }
+      break;
+    }
+
     case 'system': {
       const room = getRoom(msg.roomId);
       if (!room) break;
@@ -246,6 +284,9 @@ function normalizeMsg(m) {
     timeFull: m.timeFull || nowFull(),
     own:    isSelf(m.sender || m.username),
     type:   m.type || 'message',
+    edited: m.edited === true,
+    reactions: (m.reactions && typeof m.reactions === 'object') ? m.reactions : {},
+    replyTo: m.replyTo || null,
   };
 }
 
@@ -356,6 +397,72 @@ function renderRoomItem(room) {
     </div>`;
 }
 
+/* 返信(引用)プレビューの HTML */
+function replyPreviewHtml(replyTo) {
+  if (!replyTo) return '';
+  const sid = safeId(replyTo.id);
+  return `
+    <div class="msg-reply-ref" onclick="TC_CHAT.jumpToMessage('${sid}')" title="返信元へ移動">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+      <span class="reply-ref-sender">${escapeHtml(replyTo.sender)}</span>
+      <span class="reply-ref-snippet">${escapeHtml(replyTo.snippet || '')}</span>
+    </div>`;
+}
+
+/* リアクションバーの HTML */
+function reactionsHtml(msg) {
+  const reactions = msg.reactions || {};
+  const keys = Object.keys(reactions);
+  if (!keys.length) return '';
+  const sid = safeId(msg.id);
+  const self = state.selfUser && state.selfUser.username;
+  const chips = keys.map(emoji => {
+    const users = Array.isArray(reactions[emoji]) ? reactions[emoji] : [];
+    if (!users.length) return '';
+    const mine = self && users.includes(self);
+    const title = users.map(escapeHtml).join(', ');
+    return `<button class="reaction${mine ? ' mine' : ''}" title="${title}"
+      onclick="TC_CHAT.toggleReaction('${sid}', '${emoji}')">
+      <span class="reaction-emoji">${emoji}</span>
+      <span class="reaction-count">${users.length}</span>
+    </button>`;
+  }).join('');
+  if (!chips) return '';
+  return `<div class="msg-reactions">${chips}</div>`;
+}
+
+/* ホバー時アクションバー (返信・リアクション・編集・削除) */
+function actionsHtml(msg, own) {
+  const sid = safeId(msg.id);
+  let html = `<div class="msg-actions">`;
+  html += `<button class="msg-action-btn" onclick="TC_CHAT.openReactionPicker('${sid}')" title="リアクション">😊</button>`;
+  html += `<button class="msg-action-btn" onclick="TC_CHAT.startReply('${sid}')" title="返信">↩</button>`;
+  if (own) {
+    html += `<button class="msg-action-btn" onclick="TC_CHAT.startEdit('${sid}')" title="編集">✏️</button>`;
+    html += `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="削除" style="color:var(--dnd)">🗑</button>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+/* メッセージ本文部分（編集中はインライン編集フォーム） */
+function bubbleHtml(msg) {
+  const sid = safeId(msg.id);
+  if (state.editingId === String(msg.id)) {
+    return `
+      <div class="msg-edit-form">
+        <textarea class="msg-edit-input" id="edit-input-${sid}"
+          onkeydown="TC_CHAT.onEditKey(event, '${sid}')">${escapeHtml(msg.text)}</textarea>
+        <div class="msg-edit-hint">
+          Enter で保存 · Esc で
+          <a href="#" onclick="TC_CHAT.cancelEdit(); return false;">キャンセル</a>
+        </div>
+      </div>`;
+  }
+  const editedBadge = msg.edited ? ` <span class="edited-badge" title="編集済み">(編集済み)</span>` : '';
+  return `<div class="msg-bubble">${formatText(msg.text)}${editedBadge}</div>`;
+}
+
 /* メッセージ一覧全描画 */
 function renderMessages(room) {
   const container = $('messages');
@@ -396,7 +503,10 @@ function renderMessages(room) {
     const senderClass   = own ? 'own-sender' : '';
     const avatarClass   = own ? 'own-avatar' : '';
 
-    if (isCompact) {
+    // 返信メッセージは引用を表示するためコンパクト化しない
+    const compact = isCompact && !msg.replyTo;
+
+    if (compact) {
       const sid = safeId(msg.id);
       html += `
         <div class="msg-group compact new-msg" id="msg-${sid}">
@@ -404,16 +514,16 @@ function renderMessages(room) {
             <span class="compact-time">${escapeHtml(msg.time)}</span>
           </div>
           <div class="msg-body">
-            <div class="msg-bubble">${formatText(msg.text)}</div>
+            ${bubbleHtml(msg)}
+            ${reactionsHtml(msg)}
           </div>
-          <div class="msg-actions">
-            ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="削除" style="color:var(--dnd)">🗑</button>` : ''}
-          </div>
+          ${actionsHtml(msg, own)}
         </div>`;
     } else {
       const sid = safeId(msg.id);
       html += `
         <div class="msg-group${own ? ' own' : ''} new-msg" id="msg-${sid}" style="margin-top:16px">
+          ${replyPreviewHtml(msg.replyTo)}
           <div class="msg-avatar-wrap">
             <div class="msg-avatar ${avatarClass}">${avatarContent}</div>
           </div>
@@ -422,11 +532,10 @@ function renderMessages(room) {
               <span class="msg-sender ${senderClass}">${escapeHtml(msg.sender)}</span>
               <span class="msg-timestamp">${escapeHtml(msg.timeFull || msg.time)}</span>
             </div>
-            <div class="msg-bubble">${formatText(msg.text)}</div>
+            ${bubbleHtml(msg)}
+            ${reactionsHtml(msg)}
           </div>
-          <div class="msg-actions">
-            ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="メッセージを削除" style="color:var(--dnd)">🗑</button>` : ''}
-          </div>
+          ${actionsHtml(msg, own)}
         </div>`;
     }
   });
@@ -454,7 +563,7 @@ function appendMessage(msg, room) {
   const own = isSelf(msg.sender);
   const lastGroup = container.querySelector('.msg-group:last-child');
   const lastSender = lastGroup?.querySelector('.msg-sender')?.textContent;
-  const isCompact  = lastSender === msg.sender;
+  const isCompact  = lastSender === msg.sender && !msg.replyTo;
   const avatarContent = makeAvatarHtml(msg.icon, msg.sender);
   const avatarClass   = own ? 'own-avatar' : '';
 
@@ -468,16 +577,16 @@ function appendMessage(msg, room) {
         <span class="compact-time">${escapeHtml(msg.time)}</span>
       </div>
       <div class="msg-body">
-        <div class="msg-bubble">${formatText(msg.text)}</div>
+        ${bubbleHtml(msg)}
+        ${reactionsHtml(msg)}
       </div>
-      <div class="msg-actions">
-        ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="削除" style="color:var(--dnd)">🗑</button>` : ''}
-      </div>`;
+      ${actionsHtml(msg, own)}`;
   } else {
     el.className = `msg-group${own ? ' own' : ''} new-msg`;
     el.id = `msg-${sid}`;
     el.style.marginTop = '16px';
     el.innerHTML = `
+      ${replyPreviewHtml(msg.replyTo)}
       <div class="msg-avatar-wrap">
         <div class="msg-avatar ${avatarClass}">${avatarContent}</div>
       </div>
@@ -486,11 +595,10 @@ function appendMessage(msg, room) {
           <span class="msg-sender${own ? ' own-sender' : ''}">${escapeHtml(msg.sender)}</span>
           <span class="msg-timestamp">${escapeHtml(msg.timeFull || msg.time)}</span>
         </div>
-        <div class="msg-bubble">${formatText(msg.text)}</div>
+        ${bubbleHtml(msg)}
+        ${reactionsHtml(msg)}
       </div>
-      <div class="msg-actions">
-        ${own ? `<button class="msg-action-btn" onclick="TC_CHAT.deleteMsg('${sid}')" title="メッセージを削除" style="color:var(--dnd)">🗑</button>` : ''}
-      </div>`;
+      ${actionsHtml(msg, own)}`;
   }
 
   container.appendChild(el);
@@ -599,29 +707,22 @@ function sendMessage() {
   const room = getRoom(state.activeRoomId);
   if (!room) return;
 
-  const msgObj = {
-    id: Date.now(),
-    sender: state.selfUser?.username || 'You',
-    icon:   state.selfUser?.icon || null,
-    text,
-    time:     now(),
-    timeFull: nowFull(),
-    own: true,
-    type: 'message',
-  };
-  room.messages.push(msgObj);
-  appendMessage(msgObj, room);
-  renderRoomList();
+  // 返信先（あればサーバーに ID のみ送る。引用本文はサーバーが確定する）
+  const replyTo = state.replyTo
+    ? { id: state.replyTo.id, sender: state.replyTo.sender, snippet: state.replyTo.snippet }
+    : null;
 
+  // 楽観 UI 用のローカルメッセージは renderMessages 経由で再描画した方が
+  // 返信表示が崩れないため、ここではサーバー応答を待たず push してから全体描画する。
   wsSend({
     type:   'message',
     roomId: state.activeRoomId,
     text,
-    sender:   state.selfUser?.username || 'You',
-    icon:     state.selfUser?.icon || null,
-    time:     msgObj.time,
-    timeFull: msgObj.timeFull,
+    replyTo: replyTo ? replyTo.id : null,
   });
+
+  // 送信後は返信状態を解除（サーバーからの本メッセージ受信で正式描画される）
+  clearReply();
   ta.value = '';
   adjustTextarea();
 }
@@ -707,7 +808,170 @@ function newChannel() {
   openRoom(id);
 }
 
-/* メッセージ削除 */
+/* ── 返信(リプライ) ──────────────────────────────────────── */
+function startReply(msgId) {
+  const room = getRoom(state.activeRoomId);
+  if (!room) return;
+  const msg = room.messages.find(m => String(m.id) === String(msgId));
+  if (!msg || msg.type === 'system') return;
+  // 編集中なら解除
+  if (state.editingId) cancelEdit();
+  state.replyTo = {
+    id: msg.id,
+    sender: msg.sender,
+    snippet: (msg.text || '').slice(0, 120),
+  };
+  renderReplyBar();
+  $('msg-input')?.focus();
+}
+
+function clearReply() {
+  state.replyTo = null;
+  renderReplyBar();
+}
+
+function renderReplyBar() {
+  const bar = $('reply-bar');
+  if (!bar) return;
+  if (!state.replyTo) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+  bar.style.display = 'flex';
+  bar.innerHTML = `
+    <div class="reply-bar-info">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+      <span><b>${escapeHtml(state.replyTo.sender)}</b> に返信中</span>
+      <span class="reply-bar-snippet">${escapeHtml(state.replyTo.snippet)}</span>
+    </div>
+    <button class="reply-bar-close" onclick="TC_CHAT.clearReply()" title="返信をやめる">✕</button>`;
+}
+
+/* ── インライン編集 ──────────────────────────────────────── */
+function startEdit(msgId) {
+  const room = getRoom(state.activeRoomId);
+  if (!room) return;
+  const msg = room.messages.find(m => String(m.id) === String(msgId));
+  if (!msg || msg.type === 'system') return;
+  if (!isSelf(msg.sender)) {
+    showToast('自分のメッセージのみ編集できます。', 'error');
+    return;
+  }
+  if (state.replyTo) clearReply();
+  state.editingId = String(msgId);
+  renderMessages(room);
+  // テキストエリアにフォーカスし末尾へカーソル
+  const ta = $(`edit-input-${safeId(msgId)}`);
+  if (ta) {
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+  }
+}
+
+function cancelEdit() {
+  if (!state.editingId) return;
+  state.editingId = null;
+  const room = getRoom(state.activeRoomId);
+  if (room) renderMessages(room);
+}
+
+function onEditKey(e, msgId) {
+  // 編集テキストエリアの高さ自動調整
+  const ta = e.target;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelEdit();
+  } else if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    saveEdit(msgId);
+  }
+}
+
+function saveEdit(msgId) {
+  const room = getRoom(state.activeRoomId);
+  if (!room) return;
+  const msg = room.messages.find(m => String(m.id) === String(msgId));
+  if (!msg) { cancelEdit(); return; }
+  const ta = $(`edit-input-${safeId(msgId)}`);
+  if (!ta) return;
+  const newText = ta.value.trim();
+  if (!newText) {
+    showToast('空のメッセージにはできません。削除する場合は削除ボタンを使用してください。', 'error');
+    return;
+  }
+  if (newText === msg.text) { cancelEdit(); return; }
+  // サーバーへ編集を通知（本人確認はサーバー側で実施）
+  wsSend({ type: 'edit_message', roomId: state.activeRoomId, messageId: msg.id, text: newText });
+  // 応答(message_edited)を待って描画されるが、体感を良くするため楽観更新もしておく
+  msg.text = newText;
+  msg.edited = true;
+  state.editingId = null;
+  renderMessages(room);
+}
+
+/* ── 絵文字リアクション ──────────────────────────────────── */
+function openReactionPicker(msgId) {
+  // 既存のピッカーを閉じる
+  closeReactionPicker();
+  const el = document.getElementById(`msg-${safeId(msgId)}`);
+  if (!el) return;
+  state.reactionPickerFor = String(msgId);
+
+  const picker = document.createElement('div');
+  picker.className = 'reaction-picker';
+  picker.id = 'reaction-picker';
+  picker.innerHTML = REACTION_EMOJIS.map(e =>
+    `<button class="reaction-picker-btn" onclick="TC_CHAT.toggleReaction('${safeId(msgId)}', '${e}')">${e}</button>`
+  ).join('');
+  el.appendChild(picker);
+
+  // 外クリックで閉じる（次のtickで登録し、開いた瞬間のクリックを拾わない）
+  setTimeout(() => {
+    document.addEventListener('click', _reactionOutsideHandler, { once: true });
+  }, 0);
+}
+
+function _reactionOutsideHandler(e) {
+  if (e.target.closest('#reaction-picker') || e.target.closest('.msg-action-btn')) {
+    // ピッカー内クリックなら再度ハンドラを登録（toggleReaction 側で閉じる）
+    document.addEventListener('click', _reactionOutsideHandler, { once: true });
+    return;
+  }
+  closeReactionPicker();
+}
+
+function closeReactionPicker() {
+  const p = document.getElementById('reaction-picker');
+  if (p) p.remove();
+  state.reactionPickerFor = null;
+}
+
+function toggleReaction(msgId, emoji) {
+  closeReactionPicker();
+  if (!state.activeRoomId) return;
+  // サーバーへトグルを通知（サーバーが reactions_updated をブロードキャスト）
+  wsSend({ type: 'react_message', roomId: state.activeRoomId, messageId: msgId, emoji });
+}
+
+/* 返信元メッセージへジャンプ（ハイライト） */
+function jumpToMessage(msgId) {
+  const el = document.getElementById(`msg-${safeId(msgId)}`);
+  if (!el) {
+    showToast('元のメッセージは表示範囲にありません。', 'info');
+    return;
+  }
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('msg-highlight');
+  setTimeout(() => el.classList.remove('msg-highlight'), 1600);
+}
+
+/* ── メッセージ削除（確認ダイアログ付き） ──────────────────── */
 function deleteMsg(msgId) {
   const room = getRoom(state.activeRoomId);
   if (!room) return;
@@ -716,13 +980,60 @@ function deleteMsg(msgId) {
   const msg = room.messages[idx];
   const admin = state.selfUser && state.selfUser.admin === true;
   if (!isSelf(msg.sender) && !admin) return;
-  // サーバーに削除を通知（サーバーが全員にブロードキャスト）
-  wsSend({ type: 'delete_message', roomId: state.activeRoomId, messageId: msgId });
-  // 楽観的にローカルでも削除
-  room.messages.splice(idx, 1);
-  const el = document.getElementById(`msg-${msgId}`);
-  if (el) el.remove();
-  renderRoomList();
+
+  // 誤削除防止: 確認モーダルを表示し、OK 時のみ削除する
+  showConfirm({
+    title: 'メッセージを削除',
+    message: 'このメッセージを削除しますか？この操作は取り消せません。',
+    preview: (msg.text || '').slice(0, 140),
+    okLabel: '削除',
+    danger: true,
+    onConfirm: () => {
+      // サーバーに削除を通知（サーバーが全員にブロードキャスト）
+      wsSend({ type: 'delete_message', roomId: state.activeRoomId, messageId: msgId });
+      // 楽観的にローカルでも削除
+      const i = room.messages.findIndex(m => String(m.id) === String(msgId));
+      if (i !== -1) room.messages.splice(i, 1);
+      const el = document.getElementById(`msg-${safeId(msgId)}`);
+      if (el) el.remove();
+      renderRoomList();
+    },
+  });
+}
+
+/* ── 汎用確認モーダル ────────────────────────────────────── */
+function showConfirm({ title, message, preview, okLabel = 'OK', danger = false, onConfirm }) {
+  // 既存の確認モーダルを除去
+  document.getElementById('tc-confirm-backdrop')?.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'tc-confirm-backdrop';
+  backdrop.className = 'tc-confirm-backdrop';
+  backdrop.innerHTML = `
+    <div class="tc-confirm" role="dialog" aria-modal="true">
+      <div class="tc-confirm-title">${escapeHtml(title || '確認')}</div>
+      <div class="tc-confirm-message">${escapeHtml(message || '')}</div>
+      ${preview ? `<div class="tc-confirm-preview">${escapeHtml(preview)}</div>` : ''}
+      <div class="tc-confirm-actions">
+        <button class="tc-confirm-btn cancel" id="tc-confirm-cancel">キャンセル</button>
+        <button class="tc-confirm-btn ${danger ? 'danger' : 'ok'}" id="tc-confirm-ok">${escapeHtml(okLabel)}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const close = () => { backdrop.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'Enter') { e.preventDefault(); doConfirm(); }
+  };
+  const doConfirm = () => { close(); try { onConfirm && onConfirm(); } catch (err) { console.error(err); } };
+
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+  document.getElementById('tc-confirm-cancel').addEventListener('click', close);
+  document.getElementById('tc-confirm-ok').addEventListener('click', doConfirm);
+  document.addEventListener('keydown', onKey);
+  // フォーカスを確認ボタンへ
+  setTimeout(() => document.getElementById('tc-confirm-ok')?.focus(), 0);
 }
 
 /* 通知トグル */
@@ -787,6 +1098,10 @@ function init() {
   document.addEventListener('keydown', e => {
     // Escape でモーダル/ピッカーを閉じる
     if (e.key === 'Escape') {
+      if (state.reactionPickerFor) { closeReactionPicker(); return; }
+      if (document.getElementById('tc-confirm-backdrop')) return; // 確認モーダル側で処理
+      if (state.editingId) { cancelEdit(); return; }
+      if (state.replyTo) { clearReply(); return; }
       if (state.emojiOpen) { state.emojiOpen = false; $('emoji-picker')?.classList.remove('open'); }
       if (state.membersOpen) { toggleMembers(); }
     }
@@ -813,6 +1128,9 @@ window.TC_CHAT = {
   openRoom, sendMessage, toggleMembers, toggleEmoji, insertEmoji,
   adjustTextarea, onInputKey, onSearch, newChannel, deleteMsg,
   toggleNotifications,
+  // v1.3.4 チャット拡張
+  startReply, clearReply, startEdit, cancelEdit, onEditKey, saveEdit,
+  openReactionPicker, toggleReaction, jumpToMessage,
   onAccountChange: () => { init(); },
 };
 
@@ -821,4 +1139,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { await TC_ACCOUNT.restoreSession(); } catch(e) { console.warn('restoreSession error', e); }
   }
   init();
-});
+});
