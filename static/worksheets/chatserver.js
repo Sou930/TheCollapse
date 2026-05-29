@@ -11,6 +11,7 @@ import { WebSocketServer } from 'ws';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getSessionUser } from '../../auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -158,13 +159,20 @@ export function attachChatServer(httpServer) {
     catch { return; }
     if (url.pathname !== CHAT_WS_PATH) return; // 他は素通り
 
+    // ── 認証: HttpOnly セッション Cookie からユーザー名を確定する ──
+    // 旧実装ではクライアントが auth メッセージで任意の username を申告でき、
+    // 他人へのなりすまし投稿・他人のメッセージ削除が可能だった。
+    // upgrade 時点でサーバー側セッションから本人を確定し、以降この値のみを信用する。
+    const sessionUser = getSessionUser(req);
+
     wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit('connection', ws, req);
+      wss.emit('connection', ws, req, sessionUser);
     });
   });
 
-  wss.on('connection', (ws) => {
-    clientMeta.set(ws, { username: null, icon: null, admin: false, roomId: null, rate: null });
+  wss.on('connection', (ws, _req, sessionUser = null) => {
+    // username はセッションから確定した本人のみ。未ログインは null のまま。
+    clientMeta.set(ws, { username: sessionUser || null, icon: null, admin: false, roomId: null, rate: null });
 
     // 接続時: 全ルームと最新メッセージを送信
     ws.send(JSON.stringify({
@@ -195,19 +203,26 @@ export function attachChatServer(httpServer) {
       if (!msg || typeof msg !== 'object') return;
 
       switch (msg.type) {
-        /* 認証 — admin はサーバー側で事前共有トークンを検証する */
+        /* 認証 — username はセッション Cookie 由来のみ信用する */
         case 'auth': {
-          meta.username = sanitizeString(msg.username || '', MAX_NAME_LEN);
-          meta.icon     = sanitizeIcon(msg.icon);
-          // 旧仕様: クライアントが `admin: true` を申告するだけで管理者になれた → 修正
-          // 新仕様: クライアントは `adminToken` を送り、サーバーは ADMIN_TOKEN と照合する
+          // 旧仕様: クライアントが msg.username を申告するだけで任意のユーザーになりすませた。
+          // 新仕様: meta.username は upgrade 時にセッションから確定済み。
+          //         クライアントが送る username は一切採用しない（なりすまし防止）。
+          if (!meta.username) {
+            // 未ログイン接続はチャットに参加させない（読み取り専用 init は既に送信済み）。
+            try { ws.send(JSON.stringify({ type: 'auth_result', admin: false, username: null, error: 'ログインが必要です' })); } catch {}
+            break;
+          }
+          // アイコンのみクライアント申告を受け付けるが、厳格にサニタイズする。
+          meta.icon  = sanitizeIcon(msg.icon);
+          // admin は ADMIN_TOKEN との照合のみで付与（クライアントの admin:true 申告は無効）。
           const token = typeof msg.adminToken === 'string' ? msg.adminToken : '';
-          meta.admin    = !!ADMIN_TOKEN && token === ADMIN_TOKEN;
+          meta.admin = !!ADMIN_TOKEN && token === ADMIN_TOKEN;
           if (msg.admin === true && !meta.admin) {
             console.warn(`[chat][auth] admin claim rejected: ${meta.username}`);
           }
           console.log(`[chat][auth] ${meta.username} admin=${meta.admin}`);
-          // クライアントへ実際に付与された権限を返す
+          // クライアントへ実際に付与された権限・確定ユーザー名を返す
           try { ws.send(JSON.stringify({ type: 'auth_result', admin: meta.admin, username: meta.username })); } catch {}
           break;
         }

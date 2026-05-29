@@ -97,16 +97,26 @@ function parseCookies(req) {
   return out;
 }
 
+// HTTPS 配下では Secure 属性を付与してセッションクッキーの盗聴を防ぐ。
+// 環境変数 COOKIE_SECURE=1 で明示有効化、もしくは本番(NODE_ENV=production)時に既定で付与。
+const COOKIE_SECURE =
+  process.env.COOKIE_SECURE === "1" || process.env.NODE_ENV === "production";
+
 function _setSessionCookie(res, token) {
-  res.setHeader(
-    "Set-Cookie",
-    `tc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(
-      SESSION_TTL_MS / 1000
-    )}`
-  );
+  const attrs = [
+    `tc_session=${token}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`,
+  ];
+  if (COOKIE_SECURE) attrs.push("Secure");
+  res.setHeader("Set-Cookie", attrs.join("; "));
 }
 function _clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", "tc_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+  const attrs = ["tc_session=", "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+  if (COOKIE_SECURE) attrs.push("Secure");
+  res.setHeader("Set-Cookie", attrs.join("; "));
 }
 
 // 期限切れセッションの掃除
@@ -116,6 +126,8 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref?.();
 
 // ---- 認証済みユーザーの取得（ミドルウェア相当） ----
+// req は Express の Request でも生の http.IncomingMessage でもよい
+// （いずれも headers.cookie を参照するため、WebSocket の upgrade 要求にも使える）。
 export function getSessionUser(req) {
   const cookies = parseCookies(req);
   const token = cookies.tc_session;
