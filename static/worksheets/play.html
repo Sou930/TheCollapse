@@ -448,7 +448,7 @@ main {
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
       TheCollapse
     </a>
-    <span class="version-badge">v1.2</span>
+    <span class="version-badge" id="version-badge">v1.2</span>
   </div>
   <div class="nav-right">
     <a href="game.html" class="nav-btn">
@@ -692,6 +692,13 @@ async function loadGame() {
 }
 
 loadGame();
+</script>
+<script>
+(async function(){
+  var el=document.getElementById("version-badge");
+  if(!el)return;
+  try{ var res=await fetch("/api/version",{cache:"no-store"}); var data=await res.json(); if(data&&data.version)el.textContent=data.version; }catch(e){}
+})();
 </script>
 </body>
 </html>

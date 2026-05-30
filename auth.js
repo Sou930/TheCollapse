@@ -72,6 +72,20 @@ function _newToken() {
   return randomBytes(32).toString("hex");
 }
 
+// ---- 大文字小文字を区別しないユーザー検索 ----
+// 既存データ(キーが元の表記のまま)を移行せずに大文字小文字無視のログインを実現するため、
+// まず完全一致を試し、無ければ小文字化して総当たりで一致するユーザーを探す。
+// 戻り値は実際の格納キー（= 正規の username）または null。
+function _findUserKey(users, username) {
+  if (typeof username !== "string") return null;
+  if (Object.prototype.hasOwnProperty.call(users, username)) return username;
+  const lower = username.toLowerCase();
+  for (const key of Object.keys(users)) {
+    if (key.toLowerCase() === lower) return key;
+  }
+  return null;
+}
+
 function _publicUser(u) {
   // クライアントに返してよい情報のみ（salt / hash は絶対に含めない）
   return {
@@ -157,7 +171,8 @@ export function attachAuthRoutes(app) {
         return res.status(400).json({ error: "アイコン画像が不正です" });
       }
       const users = await _load();
-      if (users[username]) {
+      // 大文字小文字を区別せず重複を防ぐ（例: "Alice" と "alice" を別扱いにしない）
+      if (_findUserKey(users, username)) {
         return res.status(409).json({ error: "そのユーザー名はすでに使われています" });
       }
       const { salt, hash } = await _hashPassword(password);
@@ -190,7 +205,9 @@ export function attachAuthRoutes(app) {
         return res.status(400).json({ error: "ユーザー名とパスワードは必須です" });
       }
       const users = await _load();
-      const u = users[username];
+      // 大文字小文字を区別せずにユーザーを特定する（入力がどの表記でもログイン可能）
+      const userKey = _findUserKey(users, username);
+      const u = userKey ? users[userKey] : null;
       // ユーザー有無に関わらず scrypt を実行してユーザー列挙を防ぐ
       const ok =
         u && (await _verifyPassword(password, u.salt, u.hash));
@@ -200,7 +217,8 @@ export function attachAuthRoutes(app) {
         return res.status(401).json({ error: "ユーザー名またはパスワードが違います" });
       }
       const token = _newToken();
-      _sessions.set(token, { username, expiresAt: Date.now() + SESSION_TTL_MS });
+      // セッションには正規の格納キー(本来の username)を保存する
+      _sessions.set(token, { username: u.username, expiresAt: Date.now() + SESSION_TTL_MS });
       _setSessionCookie(res, token);
       res.json({ ok: true, user: _publicUser(u) });
     } catch (e) {

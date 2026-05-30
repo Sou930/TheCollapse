@@ -1349,3 +1349,126 @@ body {
   color: #fff;
 }
 .tc-confirm-btn.danger:hover { background: #c93b3e; }
+
+/* ============================================================
+   v1.3.5 デザイン調整 — メッセージ/入力欄/返信/リアクションの微調整
+   既存スタイルを上書きして全体の一体感・視認性を高める。
+   ============================================================ */
+
+/* メッセージのホバーを左端のアクセントラインで分かりやすく */
+.msg-group {
+  margin: 0 8px;
+  padding: 3px 12px;
+  border-radius: 6px;
+}
+.msg-group:hover {
+  background: var(--msg-hover);
+  box-shadow: inset 2px 0 0 rgba(88,101,242,0.55);
+}
+
+/* 送信者名と時刻の間隔を少し広げて読みやすく */
+.msg-header { gap: 8px; }
+.msg-sender { letter-spacing: -0.01em; }
+
+/* アバターに薄い枠と影を付けて浮かせる */
+.msg-avatar { box-shadow: 0 0 0 2px rgba(0,0,0,0.15); }
+
+/* リアクションチップをよりモダンに（角丸・余白） */
+.reaction {
+  border-radius: 12px;
+  padding: 2px 9px;
+  gap: 5px;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+.reaction:active { transform: scale(0.94); }
+.reaction.mine {
+  background: rgba(88,101,242,0.30);
+  border-color: rgba(88,101,242,0.85);
+}
+
+/* アクションバー: 角丸を強め・浮遊感を強調 */
+.msg-actions {
+  border-radius: 8px;
+  top: -16px;
+  padding: 3px;
+  background: #1e1f22;
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.msg-action-btn { border-radius: 6px; }
+
+/* 入力欄: フォーカス時にアクセント枠を表示してアクティブ感を出す */
+.input-wrap {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.input-wrap:focus-within {
+  border-color: rgba(88,101,242,0.6);
+  background: #3b3d44;
+}
+
+/* 送信ボタンをアクティブ時に浮かせる */
+.send-btn { border-radius: 8px; transition: color 0.12s, background 0.12s, transform 0.08s; }
+.send-btn:not(:disabled) { color: var(--accent); }
+.send-btn:not(:disabled):hover {
+  color: #fff;
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* 返信バー: 入力欄と地続きに見えるよう調整 */
+.reply-bar {
+  border-radius: 10px 10px 0 0;
+  background: #2b2d31;
+  border-color: rgba(255,255,255,0.06);
+}
+
+/* 引用プレビューに背景を付けてメッセージ本文と区別 */
+.msg-reply-ref {
+  background: rgba(255,255,255,0.03);
+  border-radius: 6px;
+  padding: 3px 8px;
+  margin-left: 56px;
+  width: fit-content;
+  max-width: calc(100% - 72px);
+  transition: background 0.12s;
+}
+.msg-reply-ref:hover { background: rgba(88,101,242,0.12); }
+
+/* チャンネルアイテムのアクティブ表示にアクセントバー */
+.room-item.active::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60%;
+  background: var(--accent);
+  border-radius: 0 4px 4px 0;
+}
+
+/* チャットヘッダーをわずかに陰影付けして区切りを明確に */
+.chat-header { box-shadow: 0 1px 0 rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.12); }
+
+/* ヘッダーのバージョンバッジ（chat では "Chat"）をナビと馴染ませる */
+#main-nav .version-badge {
+  color: var(--accent);
+  background: rgba(88,101,242,0.15);
+  border: 1px solid rgba(88,101,242,0.30);
+}
+
+/* スクロールバーを少し細く・控えめに */
+.messages-area::-webkit-scrollbar { width: 10px; }
+.messages-area::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.35);
+  border-radius: 6px;
+  border: 3px solid var(--bg);
+}
+.messages-area:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.55); }
+
+/* 接続ステータス・入力余白の微調整 */
+.ws-status { font-weight: 600; }
+.input-area { padding: 0 16px 20px; }
+.code-inline { padding: 1px 5px; }
