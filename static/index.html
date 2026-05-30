@@ -401,7 +401,7 @@ footer {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         TheCollapse
       </a>
-      <span class="version-badge">v1.2</span>
+      <span class="version-badge" id="version-badge">…</span>
     </div>
     <div class="nav-links">
         <a href="./index.html" class="nav-btn active">
@@ -963,8 +963,22 @@ function applyBgFromAccount() {
   }
 }
 
+// ===== バージョンバッジ（readme.md の更新履歴先頭から取得）=====
+async function loadVersionBadge() {
+  const el = document.getElementById('version-badge');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/version', { cache: 'no-store' });
+    const data = await res.json();
+    el.textContent = (data && data.version) ? data.version : '';
+  } catch {
+    el.textContent = '';
+  }
+}
+
 // ===== 初期化 =====
 (async () => {
+  loadVersionBadge();
   await TC_ACCOUNT.restoreSession();
   renderAccountNav();
   applyBgFromAccount();

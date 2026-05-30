@@ -21,8 +21,11 @@ const DATA_FILE = path.join(DATA_DIR, 'chat-data.json');
 export const CHAT_WS_PATH = '/chat-ws';
 
 /* ── セキュリティ設定 ────────────────────────────────────── */
-// 1 メッセージあたりの最大 WS フレームサイズ (32KB)
-const MAX_WS_FRAME_BYTES = 32 * 1024;
+// 1 メッセージあたりの最大 WS フレームサイズ。
+// auth メッセージにはアイコン(data URL, 最大 200KB ※sanitizeIcon)が含まれ得るため、
+// テキスト本文の長さ制限(MAX_TEXT_LEN)とは独立して、アイコン込みでも収まるサイズにする。
+// これより小さいと「Max payload size exceeded」で接続が切れ、送信できなくなる。
+const MAX_WS_FRAME_BYTES = 320 * 1024;
 // クライアントあたり 1 秒間の最大メッセージ数 (フラッディング対策)
 const RATE_PER_SEC = 10;
 // クライアントあたり 60 秒間の最大メッセージ数

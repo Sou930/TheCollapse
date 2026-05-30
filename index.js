@@ -123,6 +123,42 @@ app.get("/api/news", async (req, res) => {
   }
 });
 
+/* ── Version API（readme.md の更新履歴の先頭バージョンを配信）──
+   「## 更新履歴」セクション内で最初に現れる `### vX.Y.Z` 見出しを
+   現在のバージョンとして返す。readme.md を更新するだけでフロントの
+   バージョンバッジが追従する。 */
+let _versionCache = { mtimeMs: 0, version: null };
+function _parseLatestVersion(markdown) {
+  if (typeof markdown !== "string") return null;
+  // 「## 更新履歴」以降に絞り込む（無ければ全文を対象）
+  const histIdx = markdown.search(/^##\s+更新履歴\s*$/m);
+  const scope = histIdx >= 0 ? markdown.slice(histIdx) : markdown;
+  // 最初の `### v1.2` / `### v1.3.5` などの見出しを拾う
+  const m = scope.match(/^###\s+(v[0-9][0-9A-Za-z.\-]*)\s*$/m);
+  return m ? m[1] : null;
+}
+app.get("/api/version", async (req, res) => {
+  try {
+    const { statSync } = await import("node:fs");
+    let mtimeMs = 0;
+    try {
+      mtimeMs = statSync(readmePath).mtimeMs;
+    } catch {
+      return res.status(404).json({ error: "readme.md not found" });
+    }
+    if (_versionCache.mtimeMs !== mtimeMs || !_versionCache.version) {
+      const raw = await readFile(readmePath, "utf8");
+      _versionCache = { mtimeMs, version: _parseLatestVersion(raw) };
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    res.json({ version: _versionCache.version || null });
+  } catch (e) {
+    console.error("version read error:", e);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.use(express.static(publicPath));
 app.use("/worksheets/uv/", express.static(uvPath));
 app.use("/uv/", express.static(uvPath));

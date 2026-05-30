@@ -329,7 +329,7 @@ nav {
       </svg>
       TheCollapse
     </a>
-    <span class="version-badge">v1.2</span>
+    <span class="version-badge" id="version-badge">v1.2</span>
   </div>
   <div class="nav-right">
     <a href="../index.html" class="nav-btn">
@@ -635,6 +635,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
   applyCloak();
 });
+</script>
+<script>
+(async function(){
+  var el=document.getElementById("version-badge");
+  if(!el)return;
+  try{ var res=await fetch("/api/version",{cache:"no-store"}); var data=await res.json(); if(data&&data.version)el.textContent=data.version; }catch(e){}
+})();
 </script>
 </body>
 </html>
