@@ -1182,11 +1182,14 @@ function hideUI() {
   document.getElementById('tab-bar').style.display = 'none';
   document.getElementById('nav-bar').style.display = 'none';
   document.getElementById('show-ui-btn').classList.add('visible');
+  // バーを隠した分、コンテンツ領域を画面上端まで広げる（上部の空白を防ぐ）
+  document.body.classList.add('ui-hidden');
 }
 function showUI() {
   document.getElementById('tab-bar').style.display = '';
   document.getElementById('nav-bar').style.display = '';
   document.getElementById('show-ui-btn').classList.remove('visible');
+  document.body.classList.remove('ui-hidden');
 }
 
 // ======= about:blank（新しいネイティブタブで表示） =======
