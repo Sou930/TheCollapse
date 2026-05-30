@@ -167,6 +167,10 @@ html, body {
   background: var(--bg);
   overflow: hidden;
 }
+/* UI非表示時はタブ・アドレスバー分の上部余白を詰めて画面全体を使う */
+body.ui-hidden #content-area {
+  top: 0;
+}
 
 .tab-content {
   display: none;
