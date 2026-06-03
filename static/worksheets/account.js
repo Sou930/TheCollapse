@@ -16,8 +16,39 @@ const TC_ACCOUNT = (() => {
   // パスワードハッシュは保持しない。
   let _current = null;
 
+  // ---- ユーザーデータの単一インメモリキャッシュ ----
+  // 以前は saveHistory / saveTabs / saveBookmarks がそれぞれ独立に
+  // _getData()（サーバー再読込）→ 一部フィールドだけ書き換え → 全体を書き戻し
+  // を行っていたため、500ms のデバウンス窓内で複数の保存が走ると
+  // 後勝ちで互いの変更を上書きし、履歴・タブの同期が失われていた（lost update）。
+  // ここでは「読み込んだ 1 個のドキュメント」を常に共有し、各保存はその
+  // 同じオブジェクトを書き換えるだけにすることで競合を解消する。
+  let _docCache = null;          // 現在ログイン中ユーザーの完全なデータドキュメント
+  let _docCacheUser = null;      // _docCache が属する username
+  let _docLoadPromise = null;    // 読み込み中の重複リクエスト合流用
+
+  // 他タブ/他端末からの変更を受け取るためのチャネル
+  let _bc = null;
+  try {
+    if (typeof BroadcastChannel !== 'undefined') _bc = new BroadcastChannel('tc_account_sync');
+  } catch { _bc = null; }
+
   function _dataPath(username) {
     return `/worksheets/data/${encodeURIComponent(username)}.json`;
+  }
+
+  // _docCache を初期化/破棄
+  function _resetDocCache(username = null) {
+    _docCache = null;
+    _docCacheUser = username;
+    _docLoadPromise = null;
+  }
+
+  // 他タブへ「データが更新された」ことを通知（自タブの再読込は不要）
+  function _broadcastChange(username) {
+    try { _bc && _bc.postMessage({ type: 'data-changed', username, ts: Date.now() }); } catch {}
+    // BroadcastChannel 非対応環境向けに localStorage シグナルも併用
+    try { localStorage.setItem('tc_sync_ping', JSON.stringify({ username, ts: Date.now() })); } catch {}
   }
 
   // すべての認証/データ系 fetch は Cookie を送るため credentials:'same-origin'
@@ -138,8 +169,8 @@ const TC_ACCOUNT = (() => {
     });
   }
 
-  async function _getData(username) {
-    // サーバー（本人のみ許可）からの読み込みを試みる
+  // サーバー（本人のみ許可）→ IndexedDB → 既定値 の順でドキュメントを取得（キャッシュ無視）
+  async function _fetchDataFromSource(username) {
     try {
       const res = await _fetch(_dataPath(username), { cache: 'no-store' });
       if (res.ok) {
@@ -151,6 +182,44 @@ const TC_ACCOUNT = (() => {
     const idb = await _readIDB(username);
     if (idb) return idb;
     return _defaultData(username);
+  }
+
+  // 単一インメモリキャッシュを介してドキュメントを返す。
+  // すべての getter / setter はこの「同じオブジェクト」を共有することで、
+  // フィールドごとの保存が互いを上書きする lost update を防ぐ。
+  async function _getData(username) {
+    // 別ユーザーに切り替わったらキャッシュを捨てる
+    if (_docCacheUser !== username) _resetDocCache(username);
+    if (_docCache) return _docCache;
+    if (_docLoadPromise) return _docLoadPromise;
+    _docLoadPromise = (async () => {
+      const doc = await _fetchDataFromSource(username);
+      // 取得の途中でユーザーが変わっていなければ採用
+      if (_docCacheUser === username) _docCache = doc;
+      _docLoadPromise = null;
+      return _docCache || doc;
+    })();
+    return _docLoadPromise;
+  }
+
+  // 強制的にサーバーから読み直してキャッシュを更新（他タブ/他端末の変更取り込み用）。
+  // 進行中の保留書き込みは先に flush して、自分の未保存変更を失わないようにする。
+  async function _refreshData(username) {
+    if (!username) return null;
+    try { await _flushPendingWrites(); } catch {}
+    const doc = await _fetchDataFromSource(username);
+    if (_docCacheUser === username) _docCache = doc;
+    return doc;
+  }
+
+  // キャッシュ済みドキュメントを安全に書き換えて永続化する共通ヘルパー。
+  // mutator は同じ参照のオブジェクトを直接編集する。
+  async function _mutate(username, mutator, opts = {}) {
+    const d = await _getData(username);
+    mutator(d);
+    const p = _writeData(username, d, opts);
+    _broadcastChange(username);
+    return p;
   }
 
   // ---- UV Cookie IndexedDB ヘルパー ----
@@ -264,10 +333,12 @@ const TC_ACCOUNT = (() => {
       // 登録と同時にサーバーがセッション Cookie を設定する
       _current = data.user;
       localStorage.setItem('tc_active_user', _current.username);
-      // データファイル初期化
+      // データファイル初期化（新規ユーザーのキャッシュも初期化）
       const initData = _defaultData(username);
       initData.icon = _current.icon || null;
       initData.createdAt = _current.createdAt;
+      _resetDocCache(username);
+      _docCache = initData;
       await _writeData(username, initData);
       return _current;
     },
@@ -280,19 +351,24 @@ const TC_ACCOUNT = (() => {
         body: { username, password },
       });
       _current = data.user;
+      // 別ユーザーの可能性があるためデータキャッシュをリセットしてから読み直す
+      _resetDocCache(_current.username);
       // searchEngine をキャッシュ
       try {
-        const d = await _getData(username);
+        const d = await _getData(_current.username);
         if (d.searchEngine) _current.engine = d.searchEngine;
       } catch {}
-      localStorage.setItem('tc_active_user', username);
+      localStorage.setItem('tc_active_user', _current.username);
       return _current;
     },
 
     // ログアウト
     async logout() {
+      // ログアウト前に未保存の変更を確実に書き出す
+      try { await _flushPendingWrites(); } catch {}
       try { await _api('/api/auth/logout', { method: 'POST' }); } catch {}
       _current = null;
+      _resetDocCache(null);
       localStorage.removeItem('tc_active_user');
     },
 
@@ -302,6 +378,7 @@ const TC_ACCOUNT = (() => {
         const data = await _api('/api/auth/me');
         if (data && data.user) {
           _current = data.user;
+          _resetDocCache(_current.username);
           try {
             const d = await _getData(_current.username);
             if (d.searchEngine) _current.engine = d.searchEngine;
@@ -311,6 +388,7 @@ const TC_ACCOUNT = (() => {
         }
       } catch {}
       _current = null;
+      _resetDocCache(null);
       localStorage.removeItem('tc_active_user');
       return false;
     },
@@ -341,8 +419,11 @@ const TC_ACCOUNT = (() => {
     async deleteAccount(username, password) {
       // username 引数は互換のために受けるが、サーバーはセッションの本人のみ削除する
       await _api('/api/auth/delete', { method: 'POST', body: { password } });
+      // 削除に成功したら保留中の書き込みは破棄してキャッシュも消す
+      _pendingWrites.clear();
       if (_current && _current.username === username) {
         _current = null;
+        _resetDocCache(null);
         localStorage.removeItem('tc_active_user');
       }
     },
@@ -358,9 +439,7 @@ const TC_ACCOUNT = (() => {
     },
     async saveHistory(v) {
       if (!_current) { GUEST.saveHistory(v); return; }
-      const d = await _getData(_current.username);
-      d.history = v;
-      await _writeData(_current.username, d);
+      await _mutate(_current.username, d => { d.history = v; });
     },
     async getBookmarks() {
       if (!_current) return GUEST.getBookmarks();
@@ -369,9 +448,7 @@ const TC_ACCOUNT = (() => {
     },
     async saveBookmarks(v) {
       if (!_current) { GUEST.saveBookmarks(v); return; }
-      const d = await _getData(_current.username);
-      d.bookmarks = v;
-      await _writeData(_current.username, d);
+      await _mutate(_current.username, d => { d.bookmarks = v; });
     },
     async getTabs() {
       if (!_current) return { tabs: GUEST.getTabs(), counter: GUEST.getTabCounter() };
@@ -380,10 +457,7 @@ const TC_ACCOUNT = (() => {
     },
     async saveTabs(tabs, counter) {
       if (!_current) { GUEST.saveTabs(tabs, counter); return; }
-      const d = await _getData(_current.username);
-      d.tabs = tabs;
-      d.tabCounter = counter;
-      await _writeData(_current.username, d);
+      await _mutate(_current.username, d => { d.tabs = tabs; d.tabCounter = counter; });
     },
     getEngine() {
       if (!_current) return GUEST.getEngine();
@@ -392,9 +466,7 @@ const TC_ACCOUNT = (() => {
     async saveEngine(v) {
       if (!_current) { GUEST.saveEngine(v); return; }
       _current.engine = v;
-      const d = await _getData(_current.username);
-      d.searchEngine = v;
-      await _writeData(_current.username, d);
+      await _mutate(_current.username, d => { d.searchEngine = v; });
     },
     getBg() {
       if (!_current) return GUEST.getBg();
@@ -410,9 +482,7 @@ const TC_ACCOUNT = (() => {
       if (!_current) return;
       try {
         const cookies = await _readUVCookiesFromIDB();
-        const d = await _getData(_current.username);
-        d.uvCookies = cookies;
-        await _writeData(_current.username, d);
+        await _mutate(_current.username, d => { d.uvCookies = cookies; });
       } catch (e) {
         console.warn('[TC_ACCOUNT] saveCookies failed:', e);
       }
@@ -430,6 +500,37 @@ const TC_ACCOUNT = (() => {
       }
     },
 
+    // 他タブ/他端末の変更を取り込むため、サーバーから読み直す。
+    // 戻り値は最新ドキュメント（呼び出し側でキャッシュ再描画に使える）。
+    async refresh() {
+      if (!_current) return null;
+      return _refreshData(_current.username);
+    },
+
+    // 変更通知を購読する。callback(username) が呼ばれたら呼び出し側で再読込する。
+    onSyncChange(callback) {
+      if (typeof callback !== 'function') return () => {};
+      const handlers = [];
+      if (_bc) {
+        const h = (ev) => {
+          const data = ev && ev.data;
+          if (data && data.type === 'data-changed') callback(data.username);
+        };
+        _bc.addEventListener('message', h);
+        handlers.push(() => _bc.removeEventListener('message', h));
+      }
+      if (typeof window !== 'undefined') {
+        const sh = (ev) => {
+          if (ev.key === 'tc_sync_ping' && ev.newValue) {
+            try { callback(JSON.parse(ev.newValue).username); } catch { callback(null); }
+          }
+        };
+        window.addEventListener('storage', sh);
+        handlers.push(() => window.removeEventListener('storage', sh));
+      }
+      return () => { handlers.forEach(fn => fn()); };
+    },
+
     async flush() {
       await _flushPendingWrites();
     },
@@ -441,13 +542,13 @@ const TC_ACCOUNT = (() => {
         GUEST.saveHistory(cur.slice(0, 500));
         return;
       }
-      const d = await _getData(_current.username);
-      d.history = d.history || [];
-      const last = d.history[0];
-      if (last && last.url === entry.url && (Date.now() - last.time) < 5000) return;
-      d.history.unshift(entry);
-      if (d.history.length > 500) d.history = d.history.slice(0, 500);
-      await _writeData(_current.username, d);
+      await _mutate(_current.username, d => {
+        d.history = d.history || [];
+        const last = d.history[0];
+        if (last && last.url === entry.url && (Date.now() - last.time) < 5000) return;
+        d.history.unshift(entry);
+        if (d.history.length > 500) d.history = d.history.slice(0, 500);
+      });
     },
   };
 
@@ -472,16 +573,34 @@ const TC_ACCOUNT = (() => {
     window.addEventListener('beforeunload', () => {
       _flushPendingWrites();
     });
+    // タブが再びアクティブになったとき、他タブ/他端末での変更をサーバーから取り込む。
+    // 取り込んだら 'tc:datasync' を発火し、ページ側（go.js 等）が再描画できるようにする。
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState !== 'visible' || !_current) return;
+      try {
+        await _refreshData(_current.username);
+        window.dispatchEvent(new CustomEvent('tc:datasync', { detail: { username: _current.username } }));
+      } catch {}
+    });
     setInterval(async () => {
       if (!_current) return;
       try {
         const cookies = await _readUVCookiesFromIDB();
         if (!cookies || cookies.length === 0) return;
-        const d = await _getData(_current.username);
-        d.uvCookies = cookies;
-        await _writeData(_current.username, d);
+        await _mutate(_current.username, d => { d.uvCookies = cookies; });
       } catch {}
     }, 30000);
+
+    // 他タブからの変更通知を受けたらサーバーから読み直して再描画イベントを発火。
+    // （自タブの保存でも broadcast するが BroadcastChannel は送信元に届かないため
+    //  自タブ二重更新は起きない。localStorage 経由のシグナルも別タブにのみ届く。）
+    API.onSyncChange(async (username) => {
+      if (!_current || (username && username !== _current.username)) return;
+      try {
+        await _refreshData(_current.username);
+        window.dispatchEvent(new CustomEvent('tc:datasync', { detail: { username: _current.username } }));
+      } catch {}
+    });
   }
 
   return API;

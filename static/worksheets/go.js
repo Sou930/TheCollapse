@@ -140,6 +140,26 @@ window.addEventListener('DOMContentLoaded', async () => {
       TC_ACCOUNT.saveCookies();
     }
   });
+
+  // 他タブ/他端末でデータが変わったら（account.js が tc:datasync を発火）
+  // 履歴・ブックマークのキャッシュを取り直し、開いているパネルを再描画する。
+  // これにより複数端末・複数タブ間で履歴とブックマークが同期表示される。
+  window.addEventListener('tc:datasync', async () => {
+    if (typeof TC_ACCOUNT === 'undefined' || !TC_ACCOUNT.currentUser()) return;
+    try {
+      await _syncBookmarks();
+      await _syncHistory();
+      renderBookmarkBtn();
+      if (document.getElementById('history-panel')?.classList.contains('open')) {
+        renderHistoryList();
+      }
+      if (document.getElementById('bookmark-panel')?.classList.contains('open')) {
+        renderBookmarkList();
+      }
+    } catch (e) {
+      try { console.warn('[go] datasync error:', e && e.message); } catch {}
+    }
+  });
 });
 
 // ======= タブ管理 =======
