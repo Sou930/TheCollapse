@@ -3,7 +3,20 @@
 <head>
 <meta charset="utf-8">
 <title>TheCollapse</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<!-- ── PWA: ホーム画面に追加 ──────────────────────────────── -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0e1117">
+<meta name="description" content="チャット・履歴管理・アカウント機能を備えた Web アプリケーション">
+<!-- iOS (Safari) 向け: スタンドアロン起動・アイコン -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TheCollapse">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+
 <script src="./worksheets/uv/uv.bundle.js"></script>
 <script src="./worksheets/uv/uv.config.js"></script>
 <script src="./worksheets/account.js"></script>
@@ -386,6 +399,25 @@ footer {
 .setting-row:last-child { border-bottom: none; }
 .setting-label { font-size: 14px; color: var(--text); }
 .setting-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* ── 埋め込みブラウザ オーバーレイ ─────────────────────────── */
+#browser-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: var(--bg);
+  display: none;
+}
+#browser-overlay.open { display: block; }
+#browser-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: var(--bg);
+}
+/* オーバーレイ表示中は背面のスクロールを止める */
+body.browser-open { overflow: hidden; }
 </style>
 </head>
 <body>
@@ -420,6 +452,10 @@ footer {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Settings
         </a>
+        <button id="install-pwa-btn" class="nav-btn" type="button" style="display:none;background:none;border:0;cursor:pointer;font:inherit;" title="ホーム画面に追加">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          ホームに追加
+        </button>
       </div>
   </div>
 </nav>
@@ -504,7 +540,7 @@ footer {
     </div>
     <!-- タブ一覧 -->
     <div class="search-tabs" style="justify-content:flex-end;">
-      <a class="search-tab-btn" href="./worksheets/go.html">
+      <a class="search-tab-btn" href="./worksheets/go.html" onclick="event.preventDefault(); openBrowser('./worksheets/go.html');">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         Browser
       </a>
@@ -705,10 +741,61 @@ function doSearch(ev) {
 function goTo(url, ev) { ev.preventDefault(); navigate(url); }
 function navigate(url) {
   if (typeof __uv$config==='undefined') { window.open(url,'_blank'); return; }
+  // ページ遷移せず、ブラウザUI(go.html)を全画面オーバーレイとして「埋め込む」。
+  // アドレスバーは .com のまま（go.html へは飛ばさない）。
   window.navigator.serviceWorker.register('/sw.js',{scope:__uv$config.prefix})
-    .then(()=>{ sessionStorage.setItem('uvURL',__uv$config.encodeUrl(url)); location.href='./worksheets/go.html'; })
+    .then(()=>{ sessionStorage.setItem('uvURL',__uv$config.encodeUrl(url)); openBrowser('./worksheets/go.html'); })
     .catch(()=>window.open(url,'_blank'));
 }
+
+// ───── 埋め込みブラウザ（オーバーレイ）─────────────────────────
+// go.html を iframe で全画面表示することで、URL を .com に保ったまま
+// プロキシブラウザを利用できるようにする。
+function openBrowser(src) {
+  const overlay = document.getElementById('browser-overlay');
+  const frame   = document.getElementById('browser-frame');
+  if (!overlay || !frame) { location.href = src; return; }
+  // まだ表示していなければ iframe をロード
+  if (overlay.getAttribute('data-open') !== '1') {
+    frame.src = src || './worksheets/go.html';
+    overlay.setAttribute('data-open','1');
+    overlay.classList.add('open');
+    document.body.classList.add('browser-open');
+    // 戻るボタンでオーバーレイを閉じられるよう履歴に積む
+    try { history.pushState({ tcBrowser: true }, '', location.href); } catch {}
+  }
+}
+function closeBrowser() {
+  const overlay = document.getElementById('browser-overlay');
+  const frame   = document.getElementById('browser-frame');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('data-open','0');
+  document.body.classList.remove('browser-open');
+  // iframe を空にしてリソース/音声などを停止
+  if (frame) frame.src = 'about:blank';
+}
+// 埋め込み go.html からの「ホームに戻る」要求を受け取る
+window.addEventListener('message', (ev) => {
+  if (ev.origin !== location.origin) return;
+  const d = ev.data;
+  if (d && d.type === 'tc-browser-close') {
+    // pushState 済みなら戻す（popstate 側で閉じる）。無ければ直接閉じる。
+    const overlay = document.getElementById('browser-overlay');
+    if (overlay && overlay.getAttribute('data-open') === '1' && history.state && history.state.tcBrowser) {
+      history.back();
+    } else {
+      closeBrowser();
+    }
+  }
+});
+// ブラウザの戻る操作でオーバーレイを閉じる
+window.addEventListener('popstate', () => {
+  const overlay = document.getElementById('browser-overlay');
+  if (overlay && overlay.getAttribute('data-open') === '1') {
+    closeBrowser();
+  }
+});
 
 // ===== アカウント UI =====
 function renderAccountNav() {
@@ -972,13 +1059,56 @@ async function loadVersionBadge() {
   }
 }
 
+// ===== PWA: サービスワーカー登録 + インストール導線 =====
+// プロキシ用 UV-SW(/sw.js, scope:/service/) とは別に、アプリシェル用の
+// PWA-SW(/pwa-sw.js, scope:/) を登録して「ホーム画面に追加」を成立させる。
+function initPWA() {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/pwa-sw.js', { scope: '/' }).catch(() => {});
+    });
+  }
+
+  // インストール可能になったら「ホームに追加」ボタンを表示
+  let deferredPrompt = null;
+  const btn = document.getElementById('install-pwa-btn');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (btn) btn.style.display = 'inline-flex';
+  });
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      try { await deferredPrompt.userChoice; } catch {}
+      deferredPrompt = null;
+      btn.style.display = 'none';
+    });
+  }
+  // インストール済み or スタンドアロン起動中はボタンを隠す
+  window.addEventListener('appinstalled', () => { if (btn) btn.style.display = 'none'; });
+  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+    if (btn) btn.style.display = 'none';
+  }
+}
+
 // ===== 初期化 =====
 (async () => {
+  initPWA();
   loadVersionBadge();
   await TC_ACCOUNT.restoreSession();
   renderAccountNav();
   applyBgFromAccount();
 })();
 </script>
+
+<!-- ======= 埋め込みブラウザ オーバーレイ ======= -->
+<div id="browser-overlay" data-open="0" aria-hidden="true">
+  <iframe id="browser-frame"
+          title="TheCollapse Browser"
+          allow="clipboard-read; clipboard-write; fullscreen; autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen></iframe>
+</div>
 </body>
 </html>
