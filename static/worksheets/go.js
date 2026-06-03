@@ -594,7 +594,20 @@ function reloadTab() {
   const iframe = document.getElementById('frame-' + activeTabId);
   if (iframe) try { iframe.contentWindow.location.reload(); } catch { iframe.src = iframe.src; }
 }
+// 親ページ(index.html)に埋め込まれて表示されているか
+function isEmbedded() {
+  try { return window.parent && window.parent !== window; } catch { return true; }
+}
+function requestCloseBrowser() {
+  // オーバーレイ埋め込み時はページ遷移せず、親へ閉じる要求を送る
+  // （アドレスバーを .com のまま保つ）。
+  if (isEmbedded()) {
+    try { window.parent.postMessage({ type: 'tc-browser-close' }, location.origin); return true; } catch {}
+  }
+  return false;
+}
 function goHome() {
+  if (requestCloseBrowser()) return;
   location.href = '../index.html';
 }
 function updateNavButtons() {
@@ -1538,6 +1551,7 @@ function doGoLogout() {
 }
 
 function goToHome() {
+  if (requestCloseBrowser()) return;
   location.href = '../index.html';
 }
 
