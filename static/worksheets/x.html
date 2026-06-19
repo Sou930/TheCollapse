@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TheCollapse - X 検索</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --nav-h: 56px;
+  --bg: #0e1117;
+  --surface: #161b27;
+  --surface2: #1c2233;
+  --border: #252d3d;
+  --border-hover: #3a4560;
+  --text: #e8ecf3;
+  --text-dim: #8892a4;
+  --accent: #5b8fff;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── ナビバー (chat.html と統一) ── */
+#main-nav {
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  background: rgba(14, 17, 23, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(37, 45, 61, 0.6);
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-row1 { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.nav-left { display: flex; align-items: center; gap: 12px; }
+.nav-logo {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 17px; font-weight: 700; color: var(--text);
+  letter-spacing: -0.3px; text-decoration: none;
+}
+.nav-logo svg { color: var(--text); }
+.version-badge {
+  font-size: 11px; font-weight: 500; color: var(--text-dim);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 8px;
+}
+.nav-links { display: flex; align-items: center; gap: 2px; }
+.nav-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: var(--text-dim);
+  text-decoration: none; transition: color .15s, background .15s;
+}
+.nav-btn:hover { color: var(--text); background: rgba(255,255,255,0.07); }
+.nav-btn.active { color: var(--text); background: rgba(255,255,255,0.10); }
+
+/* ── 検索ページ本体 ── */
+.x-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 28px 20px 80px;
+}
+.x-head {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 6px;
+}
+.x-head .x-logo {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: #000; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.x-head h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+.x-sub { color: var(--text-dim); font-size: 13px; margin-bottom: 20px; }
+
+/* 検索フォーム */
+.search-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px; margin-bottom: 12px;
+}
+.search-input-wrap { position: relative; flex: 1 1 280px; min-width: 200px; }
+.search-input-wrap svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--text-dim); pointer-events: none;
+}
+#x-query {
+  width: 100%; height: 44px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 0 12px 0 38px; font-size: 15px; color: var(--text);
+  outline: none; transition: border-color .15s; font-family: inherit;
+}
+#x-query:focus { border-color: var(--accent); }
+.seg {
+  display: flex; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.seg button {
+  background: none; border: none; color: var(--text-dim);
+  padding: 0 14px; height: 44px; font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit; transition: background .15s, color .15s;
+}
+.seg button.active { background: var(--accent); color: #fff; }
+.search-go {
+  height: 44px; padding: 0 22px; background: var(--accent);
+  border: none; border-radius: 10px; color: #fff;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: opacity .15s; flex-shrink: 0;
+}
+.search-go:hover { opacity: .88; }
+.search-go:disabled { opacity: .5; cursor: default; }
+
+.hint {
+  color: var(--text-dim); font-size: 12px; margin-bottom: 22px; line-height: 1.6;
+}
+.hint code {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 6px; color: #b9c4d8; font-size: 11px;
+}
+
+/* 状態表示 */
+#status {
+  text-align: center; color: var(--text-dim); padding: 60px 0; font-size: 14px;
+}
+#status .spinner {
+  width: 28px; height: 28px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  margin: 0 auto 14px; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* グリッド */
+.grid {
+  columns: 4 260px; column-gap: 14px;
+}
+.card {
+  break-inside: avoid; margin-bottom: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden;
+  transition: border-color .15s, transform .15s;
+}
+.card:hover { border-color: var(--border-hover); }
+.card-media { position: relative; display: block; line-height: 0; background: #0a0d13; }
+.card-media img {
+  width: 100%; height: auto; display: block; cursor: pointer;
+}
+.sensitive-veil {
+  position: absolute; inset: 0; backdrop-filter: blur(22px);
+  background: rgba(10,13,19,0.4); display: flex; align-items: center;
+  justify-content: center; flex-direction: column; gap: 6px; cursor: pointer;
+  color: #fff; font-size: 12px; text-align: center;
+}
+.video-badge {
+  position: absolute; bottom: 8px; right: 8px;
+  background: rgba(0,0,0,0.7); color: #fff; font-size: 11px;
+  padding: 3px 8px; border-radius: 6px; display: flex; align-items: center; gap: 4px;
+}
+.card-body { padding: 11px 13px 13px; }
+.card-user { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.card-user img { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; object-fit: cover; }
+.card-user .uname {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-user .uid { font-size: 11px; color: var(--text-dim); }
+.badge-blue { color: #1d9bf0; flex-shrink: 0; }
+.badge-business { color: #e2b719; flex-shrink: 0; }
+.card-text {
+  font-size: 12.5px; line-height: 1.55; color: #c7cfdd;
+  white-space: pre-wrap; word-break: break-word;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-stats {
+  display: flex; gap: 14px; margin-top: 9px; padding-top: 9px;
+  border-top: 1px solid var(--border); color: var(--text-dim); font-size: 11px;
+}
+.card-stats span { display: flex; align-items: center; gap: 4px; }
+.card-link {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 9px;
+  font-size: 11px; color: var(--accent); text-decoration: none;
+}
+.card-link:hover { text-decoration: underline; }
+
+/* もっと見る */
+#load-more {
+  display: none; margin: 26px auto 0; height: 44px; padding: 0 28px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text); font-size: 14px; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: border-color .15s;
+}
+#load-more:hover { border-color: var(--border-hover); }
+#load-more:disabled { opacity: .6; cursor: default; }
+
+/* ライトボックス */
+#lightbox {
+  display: none; position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.92); align-items: center; justify-content: center;
+  padding: 30px; cursor: zoom-out;
+}
+#lightbox.open { display: flex; }
+#lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+#lightbox .lb-close {
+  position: absolute; top: 18px; right: 22px; background: none; border: none;
+  color: #fff; font-size: 30px; cursor: pointer; line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .nav-links .nav-btn span.lbl { display: none; }
+  .x-wrap { padding: 18px 12px 60px; }
+  .grid { columns: 2 150px; column-gap: 10px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ナビ -->
+<nav id="main-nav">
+  <div class="nav-row1">
+    <div class="nav-left">
+      <a href="../index.html" class="nav-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        TheCollapse
+      </a>
+      <span class="version-badge">X</span>
+    </div>
+    <div class="nav-links">
+      <a href="../index.html" class="nav-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span class="lbl">Home</span>
+      </a>
+      <a href="news.html" class="nav-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8z"/></svg>
+        <span class="lbl">News</span>
+      </a>
+      <a href="chat.html" class="nav-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="lbl">Chat</span>
+      </a>
+      <a href="x.html" class="nav-btn active">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span class="lbl">X</span>
+      </a>
+      <a href="settings.html" class="nav-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="lbl">Settings</span>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<main class="x-wrap">
+  <div class="x-head">
+    <div class="x-logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+    </div>
+    <h1>X 検索</h1>
+  </div>
+  <p class="x-sub">Yahoo!リアルタイム検索を利用して X(旧Twitter) の投稿・画像を検索します（日本語コンテンツ中心）。</p>
+
+  <div class="search-bar">
+    <div class="search-input-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="x-query" placeholder="キーワードを入力（例: イラスト、#写真、ID:nhk_news）" autocomplete="off">
+    </div>
+    <div class="seg" id="seg-media">
+      <button data-mtype="image" class="active">画像</button>
+      <button data-mtype="video">動画</button>
+      <button data-mtype="">すべて</button>
+    </div>
+    <div class="seg" id="seg-sort">
+      <button data-md="h" class="active">人気順</button>
+      <button data-md="">新着順</button>
+    </div>
+    <button class="search-go" id="search-go">検索</button>
+  </div>
+
+  <p class="hint">
+    クエリ演算子が使えます：
+    <code>A OR B</code>（OR検索） /
+    <code>A -B</code>（NOT検索） /
+    <code>ID:username</code>（特定ユーザーの投稿） /
+    <code>#hashtag</code>（ハッシュタグ） /
+    <code>@username</code>（宛先）
+  </p>
+
+  <div id="status"></div>
+  <div class="grid" id="grid"></div>
+  <button id="load-more">もっと見る</button>
+</main>
+
+<!-- ライトボックス -->
+<div id="lightbox" onclick="XAPP.closeLightbox()">
+  <button class="lb-close" onclick="XAPP.closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+const XAPP = (() => {
+  const state = { q: "", mtype: "image", md: "h", cursor: null, loading: false, seen: new Set() };
+  const $ = (id) => document.getElementById(id);
+  const grid = $("grid"), statusEl = $("status"), loadMore = $("load-more");
+
+  function fmtNum(n) {
+    if (n == null) return "0";
+    if (n >= 10000) return (n / 10000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "") + "万";
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+    return String(n);
+  }
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function badgeSvg(type) {
+    if (type === "blue")
+      return `<svg class="badge-blue" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z"/></svg>`;
+    if (type === "business")
+      return `<svg class="badge-business" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z"/></svg>`;
+    return "";
+  }
+
+  function cardHtml(it) {
+    const m = it.media && it.media[0];
+    const isVideo = m && (m.mediaType === "video" || m.mediaType === "animated_gif");
+    let mediaHtml = "";
+    if (m && m.mediaUrl) {
+      const veil = it.possiblySensitive
+        ? `<div class="sensitive-veil" onclick="this.style.display='none';event.stopPropagation();">
+             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+             <div>センシティブな内容<br>タップで表示</div>
+           </div>`
+        : "";
+      const vbadge = isVideo
+        ? `<div class="video-badge">
+             <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+             ${m.duration ? Math.round(m.duration / 1000) + "s" : "動画"}
+           </div>`
+        : "";
+      mediaHtml = `<div class="card-media">
+        <img src="${esc(m.mediaUrl)}" alt="" loading="lazy" onclick="XAPP.openLightbox('${esc(m.mediaUrl)}')" onerror="this.parentElement.style.display='none'">
+        ${vbadge}${veil}
+      </div>`;
+    }
+    const icon = it.user.icon
+      ? `<img src="${esc(it.user.icon)}" alt="" onerror="this.style.visibility='hidden'">`
+      : `<div style="width:26px;height:26px;border-radius:50%;background:#334;flex-shrink:0"></div>`;
+    return `<div class="card">
+      ${mediaHtml}
+      <div class="card-body">
+        <div class="card-user">
+          ${icon}
+          <div style="min-width:0">
+            <div class="uname">${esc(it.user.name || it.user.id || "")}${badgeSvg(it.user.badge)}</div>
+            <div class="uid">@${esc(it.user.id || "")}</div>
+          </div>
+        </div>
+        ${it.text ? `<div class="card-text">${esc(it.text)}</div>` : ""}
+        <div class="card-stats">
+          <span>❤ ${fmtNum(it.stats.favorites)}</span>
+          <span>🔁 ${fmtNum(it.stats.retweets)}</span>
+          <span>💬 ${fmtNum(it.stats.replies)}</span>
+        </div>
+        ${it.tweetUrl ? `<a class="card-link" href="${esc(it.tweetUrl)}" target="_blank" rel="noopener noreferrer">
+          Xで開く
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>` : ""}
+      </div>
+    </div>`;
+  }
+
+  async function fetchPage(reset) {
+    if (state.loading) return;
+    state.loading = true;
+    loadMore.disabled = true;
+    if (reset) {
+      grid.innerHTML = "";
+      state.cursor = null;
+      state.seen = new Set();
+      statusEl.innerHTML = `<div class="spinner"></div>検索中...`;
+      loadMore.style.display = "none";
+    }
+    try {
+      const params = new URLSearchParams({ p: state.q, results: "40" });
+      if (state.md === "h") params.set("md", "h");
+      if (state.mtype) params.set("mtype", state.mtype);
+      if (state.cursor) params.set("oldestTweetId", state.cursor);
+      const res = await fetch("/api/x-search?" + params.toString());
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `エラー (${res.status})`);
+      }
+      const data = await res.json();
+      const fresh = (data.items || []).filter((it) => !state.seen.has(it.id));
+      fresh.forEach((it) => state.seen.add(it.id));
+
+      if (reset && fresh.length === 0) {
+        statusEl.innerHTML = "該当する投稿が見つかりませんでした。";
+        return;
+      }
+      statusEl.innerHTML = "";
+      grid.insertAdjacentHTML("beforeend", fresh.map(cardHtml).join(""));
+      state.cursor = data.nextCursor;
+      // 続きがあればボタン表示
+      loadMore.style.display = data.nextCursor && fresh.length > 0 ? "block" : "none";
+    } catch (e) {
+      statusEl.innerHTML = `<span style="color:#ff6b6b">${esc(e.message)}</span>`;
+    } finally {
+      state.loading = false;
+      loadMore.disabled = false;
+    }
+  }
+
+  function doSearch() {
+    const q = $("x-query").value.trim();
+    if (!q) { $("x-query").focus(); return; }
+    state.q = q;
+    // URLに反映（共有/再読込用）
+    const u = new URL(location.href);
+    u.searchParams.set("q", q);
+    history.replaceState(null, "", u);
+    fetchPage(true);
+  }
+
+  function openLightbox(url) {
+    $("lightbox-img").src = url;
+    $("lightbox").classList.add("open");
+  }
+  function closeLightbox() {
+    $("lightbox").classList.remove("open");
+    $("lightbox-img").src = "";
+  }
+
+  function init() {
+    // セグメント切替
+    document.querySelectorAll("#seg-media button").forEach((b) =>
+      b.addEventListener("click", () => {
+        document.querySelectorAll("#seg-media button").forEach((x) => x.classList.remove("active"));
+        b.classList.add("active");
+        state.mtype = b.dataset.mtype;
+        if (state.q) doSearch();
+      })
+    );
+    document.querySelectorAll("#seg-sort button").forEach((b) =>
+      b.addEventListener("click", () => {
+        document.querySelectorAll("#seg-sort button").forEach((x) => x.classList.remove("active"));
+        b.classList.add("active");
+        state.md = b.dataset.md;
+        if (state.q) doSearch();
+      })
+    );
+    $("search-go").addEventListener("click", doSearch);
+    $("x-query").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+    loadMore.addEventListener("click", () => fetchPage(false));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
+
+    // URLクエリから初期検索
+    const initial = new URL(location.href).searchParams.get("q");
+    if (initial) { $("x-query").value = initial; state.q = initial; fetchPage(true); }
+    else { statusEl.innerHTML = "キーワードを入力して検索してください。"; }
+  }
+
+  return { init, openLightbox, closeLightbox };
+})();
+XAPP.init();
+</script>
+</body>
+</html>
