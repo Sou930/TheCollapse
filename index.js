@@ -159,6 +159,162 @@ app.get("/api/version", async (req, res) => {
   }
 });
 
+/* ── X(Twitter)検索プロキシ ───────────────────────────────
+   Yahoo!リアルタイム検索のバックエンドAPIを認証不要で中継する。
+   公式X APIは有料化されたが、Yahoo!リアルタイム検索のJSON APIを使えば
+   画像付きツイートを取得できる。User-Agent を偽装しないとブロックされる
+   ため、サーバー側で付与して中継する（CORS回避も兼ねる）。
+   参考: https://qiita.com/maebahesioru/items/4fc4e6baf5b96aa84061     */
+const X_SEARCH_BASE = "https://search.yahoo.co.jp/realtime/api/v1/pagination";
+// 簡易レートリミッタ（X検索専用・IPごと毎分30回）
+const _xRlBucket = new Map();
+const X_RL_WINDOW_MS = 60_000;
+const X_RL_MAX = 30;
+function xRateLimit(req, res, next) {
+  const ip =
+    (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
+    req.socket.remoteAddress ||
+    "unknown";
+  const now = Date.now();
+  const cur = _xRlBucket.get(ip);
+  if (!cur || cur.resetAt < now) {
+    _xRlBucket.set(ip, { count: 1, resetAt: now + X_RL_WINDOW_MS });
+    return next();
+  }
+  cur.count += 1;
+  if (cur.count > X_RL_MAX) {
+    res.setHeader("Retry-After", Math.ceil((cur.resetAt - now) / 1000));
+    return res.status(429).json({ error: "Too Many Requests" });
+  }
+  next();
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _xRlBucket) if (v.resetAt < now) _xRlBucket.delete(k);
+}, 5 * 60_000).unref?.();
+
+app.get("/api/x-search", xRateLimit, async (req, res) => {
+  try {
+    const q = typeof req.query.p === "string" ? req.query.p.trim() : "";
+    if (!q) return res.status(400).json({ error: "検索キーワード(p)が必要です" });
+    if (q.length > 200) return res.status(400).json({ error: "検索キーワードが長すぎます" });
+
+    // 許可するパラメータのみを安全に組み立てる
+    const params = new URLSearchParams();
+    params.set("p", q);
+    // 並び順: h=人気順 / 省略=新着順
+    if (req.query.md === "h") params.set("md", "h");
+    // 取得件数（最大40）
+    let results = parseInt(req.query.results, 10);
+    if (!Number.isFinite(results) || results <= 0) results = 40;
+    results = Math.min(results, 40);
+    params.set("results", String(results));
+    // メディア種別: image / video のみ許可
+    if (req.query.mtype === "image" || req.query.mtype === "video") {
+      params.set("mtype", req.query.mtype);
+    }
+    // ページネーション: start（1始まり・上限10000）
+    if (req.query.start != null) {
+      let start = parseInt(req.query.start, 10);
+      if (Number.isFinite(start) && start >= 1 && start <= 10000) {
+        params.set("start", String(start));
+      }
+    }
+    // カーソル: oldestTweetId（数字のみ）
+    if (typeof req.query.oldestTweetId === "string" && /^\d{1,32}$/.test(req.query.oldestTweetId)) {
+      params.set("oldestTweetId", req.query.oldestTweetId);
+    }
+
+    const upstream = `${X_SEARCH_BASE}?${params.toString()}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    let upstreamRes;
+    try {
+      upstreamRes = await fetch(upstream, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+          Accept: "application/json, text/plain, */*",
+          "Accept-Language": "ja,en;q=0.9",
+          Referer: "https://search.yahoo.co.jp/realtime/search",
+        },
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!upstreamRes.ok) {
+      return res
+        .status(502)
+        .json({ error: `上流APIエラー (${upstreamRes.status})` });
+    }
+    const data = await upstreamRes.json();
+
+    // レスポンスを必要最小限に整形して返す（生レスポンスは大きいため）。
+    // Yahoo!リアルタイム検索の実フィールド名に合わせる:
+    //   displayText/displayTextFragments(本文), screenName/name/profileImage(ユーザー),
+    //   likesCount/rtCount/replyCount/qtCount(統計), media[].item.mediaUrl(画像URL),
+    //   createdAt(UNIX秒), badge.type(認証バッジ)
+    const entries = data?.timeline?.entry || [];
+    const items = entries
+      .map((e) => {
+        const media = Array.isArray(e.media)
+          ? e.media
+              .map((m) => ({
+                mediaUrl: m?.item?.mediaUrl || null,
+                mediaType: m?.item?.mediaType || m?.type || null,
+                duration: m?.item?.duration || null,
+              }))
+              .filter((m) => m.mediaUrl)
+          : [];
+        // 本文はタブ区切りのマーカー(START/END)を含むことがあるので除去
+        const rawText = e.displayTextFragments || e.displayText || e.displayTextBody || "";
+        const text = String(rawText).replace(/\tSTART\t|\tEND\t/g, "").trim();
+        const screenName = e.screenName || null;
+        return {
+          id: e.id || null,
+          text,
+          createdAt: e.createdAt || null,
+          tweetUrl:
+            screenName && e.id
+              ? `https://x.com/${screenName}/status/${e.id}`
+              : e.url || null,
+          stats: {
+            favorites: e.likesCount ?? null,
+            retweets: e.rtCount ?? null,
+            replies: e.replyCount ?? null,
+            quotes: e.qtCount ?? null,
+          },
+          user: {
+            id: screenName,
+            name: e.name || null,
+            icon: e.profileImage || null,
+            badge: e.badge?.show ? e.badge?.type || null : null,
+          },
+          possiblySensitive: e.possiblySensitive ?? false,
+          media,
+        };
+      })
+      .filter((x) => x.id);
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      query: q,
+      count: items.length,
+      // 次ページ用カーソル（最後のツイートID）
+      nextCursor: items.length ? items[items.length - 1].id : null,
+      items,
+    });
+  } catch (e) {
+    if (e?.name === "AbortError") {
+      return res.status(504).json({ error: "上流APIがタイムアウトしました" });
+    }
+    console.error("x-search error:", e);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.use(express.static(publicPath));
 app.use("/worksheets/uv/", express.static(uvPath));
 app.use("/uv/", express.static(uvPath));
