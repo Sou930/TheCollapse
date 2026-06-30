@@ -90,6 +90,21 @@ window.addEventListener('DOMContentLoaded', async () => {
       } else {
         createTab(fullURL, false);
       }
+    } else if (decodedInitial && isFrameBustingSite(decodedInitial)) {
+      // X / Twitter 等: アプリ内 iframe では操作できないため、
+      // トップレベルの新しいウィンドウでプロキシ経由開きする。
+      // 元タブはニュータブ(ランディング)にする。
+      const newId = createTab(null, true);
+      setTimeout(() => {
+        try { openTopLevelProxy(newId, decodedInitial); } catch (e) {
+          try { console.warn('[TC] init frame-bust open error:', e && e.message); } catch {}
+          try {
+            const t = tabs.find(x => x.id === newId);
+            if (t) { t.url = fullURL; t.displayUrl = decodedInitial; }
+            setActiveTab(newId);
+          } catch {}
+        }
+      }, 30);
     } else {
       // 既存タブがあれば新しいタブを追加、なければ最初のタブをそのURLに
       if (tabs.length === 0) {
@@ -267,6 +282,15 @@ function renderTabContent(tab) {
     iframe.className = 'browser-frame';
     iframe.src = tab.url;
     iframe.id = 'frame-' + tab.id;
+    // window.open によるポップアップ(X の OAuth ログイン等)を許可するための権限。
+    // これがないとプロキシ内のページから window.open が呼べず、Apple / Google /
+    // 電話番号ログインのポップアップがブロックされる。
+    iframe.setAttribute('allow',
+      'accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; ' +
+      'fullscreen; gyroscope; picture-in-picture; popups; popups-to-escape-sandbox; ' +
+      'web-share; publickey-credentials-get; screen-wake-lock');
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.setAttribute('referrerpolicy', 'no-referrer');
     iframe.onload = () => {
       onFrameLoad(tab.id, iframe);
       // Elementsパネルが開いていたら再インスペクト
@@ -460,6 +484,23 @@ function navigateTab(tabId, query) {
     try { console.warn('[YT-EDU] direct play check failed:', e && e.message); } catch {}
   }
 
+  // ★ フレーム内表示に対応しないサイト(X / Twitter 等)はプロキシ経由で
+  //    「トップレベルの新しいウィンドウ」として開く。アプリ内の二重 iframe
+  //    (index.html → go.html → UV iframe) の中で読み込むと、X 側のフレーム
+  //    検出・React イベント・OAuth ポップアップが壊れて、メールアドレス・
+  //    ユーザー名入力欄がフォーカスされず、Apple / Google / 電話番号ログイン
+  //    ボタンも反応しなくなる。UV の /service/ URL を window.open でトップ
+  //    レベル開きすることで、サービスワーカーがサイトをトップレベル文書として
+  //    扱い、すべての操作が復元する。
+  try {
+    if (isFrameBustingSite(url)) {
+      openTopLevelProxy(tabId, url);
+      return;
+    }
+  } catch (e) {
+    try { console.warn('[TC] frame-bust check failed:', e && e.message); } catch {}
+  }
+
   if (typeof __uv$config === 'undefined') { return; }
   window.navigator.serviceWorker.register('/sw.js', { scope: __uv$config.prefix })
     .then(() => {
@@ -475,6 +516,13 @@ function navigateTab(tabId, query) {
       iframe.className = 'browser-frame';
       iframe.src = proxyUrl;
       iframe.id = 'frame-' + tabId;
+      // window.open によるポップアップ(X の OAuth ログイン等)を許可するための権限。
+      iframe.setAttribute('allow',
+        'accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; ' +
+        'fullscreen; gyroscope; picture-in-picture; popups; popups-to-escape-sandbox; ' +
+        'web-share; publickey-credentials-get; screen-wake-lock');
+      iframe.setAttribute('allowfullscreen', '');
+      iframe.setAttribute('referrerpolicy', 'no-referrer');
       iframe.onload = () => onFrameLoad(tabId, iframe);
       content.appendChild(iframe);
       tab.url = proxyUrl;
@@ -567,11 +615,176 @@ function fallbackToProxy(tabId, url) {
       iframe.className = 'browser-frame';
       iframe.src = proxyUrl;
       iframe.id = 'frame-' + tabId;
+      // window.open によるポップアップ(X の OAuth ログイン等)を許可するための権限。
+      iframe.setAttribute('allow',
+        'accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; ' +
+        'fullscreen; gyroscope; picture-in-picture; popups; popups-to-escape-sandbox; ' +
+        'web-share; publickey-credentials-get; screen-wake-lock');
+      iframe.setAttribute('allowfullscreen', '');
+      iframe.setAttribute('referrerpolicy', 'no-referrer');
       iframe.onload = () => onFrameLoad(tabId, iframe);
       content.appendChild(iframe);
       tab.url = proxyUrl;
       tab.displayUrl = url;
     }).catch(err => console.error(err));
+}
+
+// ===== フレーム拒否サイト(X / Twitter 等)をトップレベルで開く =====
+// X(Twitter) は厳格なフレーム検出・React イベント・OAuth ポップアップを
+// 使うため、アプリ内の二重 iframe の中では入力欄がフォーカスされず
+// Apple / Google / 電話番号ログインボタンも反応しなくなる。
+// これらのサイトはプロキシ経由で「新しいウィンドウ(トップレベル文書)」
+// として開き、サービスワーカーにトップレベルとして扱わせることで全機能が復元する。
+const FRAME_BUSTING_HOSTS = [
+  'x.com', 'twitter.com', 'mobile.x.com', 'mobile.twitter.com',
+];
+
+function isFrameBustingSite(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    // x.com / twitter.com およびその全サブドメインを対象
+    return FRAME_BUSTING_HOSTS.some(h => host === h || host.endsWith('.' + h));
+  } catch { return false; }
+}
+
+// about:blank のトップレベルウィンドウ内にプロキシ iframe を埋め込み、
+// X を「トップレベル文書」として動かす。このウィンドウはアプリ本体と
+// 同じ生成元(service worker scope)に属するため UV プロキシが機能する。
+function openTopLevelProxy(tabId, originalUrl) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+
+  if (typeof __uv$config === 'undefined') {
+    // プロキシが使えなければフォールバック: 直接開く
+    try { window.open(originalUrl, '_blank', 'noopener'); } catch {}
+    return;
+  }
+
+  // タブの表示を更新(アドレスバー・タイトル・履歴)
+  tab.displayUrl = originalUrl;
+  tab.url = originalUrl;
+  tab.isNew = false;
+  try {
+    const u = new URL(originalUrl);
+    tab.title = u.hostname;
+    tab.favicon = 'https://www.google.com/s2/favicons?domain=' + u.hostname + '&sz=32';
+  } catch { tab.title = originalUrl; }
+  saveTabsToStorage();
+  renderTabs();
+  const addrEl = document.getElementById('address-input');
+  if (addrEl) addrEl.value = originalUrl;
+  addLog(`フレーム拒否サイトを新しいウィンドウで開きます: ${originalUrl.slice(0, 60)}`, 'info');
+  setLogStatus('active', 'Opening...');
+
+  // サービスワーカー登録(確実に /service/ スコープを有効化)
+  const openWin = () => {
+    const encoded = __uv$config.encodeUrl(originalUrl);
+    const proxyUrl = location.origin + '/service/' + encoded;
+
+    // about:blank を開き、その中にプロキシ URL をロードする iframe を置く。
+    // about:blank は生成元を継承するため、サービスワーカースコープ配下となり
+    // プロキシが機能する。X 側からは window.top が自分自身(about:blank)に
+    // なるため、フレーム検出を回避しつつ全操作(入力・ボタン・ポップアップ)が
+    // トップレベルと同等に機能する。
+    let w = null;
+    try {
+      w = window.open('about:blank', '_blank');
+    } catch (e) {
+      try { console.warn('[TC] window.open failed:', e && e.message); } catch {}
+    }
+    if (!w) {
+      // ポップアップがブロックされた場合はプロキシ URL を直接開く
+      try { window.open(proxyUrl, '_blank'); } catch {}
+      addLog('ポップアップがブロックされました。プロキシ URL を直接開きました。', 'warn');
+      setLogStatus('idle', 'Ready');
+      return;
+    }
+
+    try {
+      const escSrc = proxyUrl.replace(/"/g, '&quot;');
+      const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+        '<meta name="referrer" content="no-referrer">' +
+        '<title>' + escHtml(tab.title || originalUrl) + '</title>' +
+        '<style>*{margin:0;padding:0;box-sizing:border-box}' +
+        'html,body,iframe{width:100%;height:100%;border:none;display:block;background:#fff}' +
+        '</style></head><body>' +
+        '<iframe src="' + escSrc + '" allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; fullscreen; geolocation; gyroscope; microphone; picture-in-picture; publickey-credentials-get; screen-wake-lock; web-share" allowfullscreen referrerpolicy="no-referrer"></iframe>' +
+        '</body></html>';
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      // タイトル追跡(クロスオリジン時は取得不可でも URL を表示)
+      try {
+        w.addEventListener('message', (ev) => {
+          if (ev.data && ev.data.type === 'tc_nav' && ev.data.src) {
+            const decoded = decodeProxyUrl(ev.data.src);
+            addHistoryEntry({ title: ev.data.title || decoded || ev.data.src, url: decoded || ev.data.src, favicon: tab.favicon || '' });
+          }
+        });
+      } catch {}
+    } catch (e) {
+      try {
+        // about:blank への書き込みに失敗した場合はプロキシ URL を直接開く
+        w.location.href = proxyUrl;
+      } catch {}
+    }
+
+    // 元タブはニュータブ(ランディング)に戻す
+    resetTabToNewPage(tabId);
+    setLogStatus('idle', 'Ready');
+    addLog('X を新しいウィンドウで開きました。ログイン操作が可能です。', 'ok');
+  };
+
+  // サービスワーカー登録後に開く(登録済みなら即時)
+  if (window.navigator.serviceWorker.controller) {
+    openWin();
+  } else {
+    window.navigator.serviceWorker.register('/sw.js', { scope: __uv$config.prefix })
+      .then(() => {
+        // controller が立つまでごく短く待つ
+        if (window.navigator.serviceWorker.controller) return openWin();
+        return new Promise(resolve => {
+          const sw = window.navigator.serviceWorker;
+          const onCtrl = () => { if (sw.controller) { sw.removeEventListener('controllerchange', onCtrl); resolve(); } };
+          sw.addEventListener('controllerchange', onCtrl);
+          setTimeout(() => { sw.removeEventListener('controllerchange', onCtrl); resolve(); }, 1500);
+        });
+      })
+      .then(openWin)
+      .catch(err => {
+        try { console.warn('[TC] SW register failed, opening directly:', err && err.message); } catch {}
+        try { window.open(proxyUrlFromUrl(originalUrl), '_blank'); } catch {}
+        resetTabToNewPage(tabId);
+      });
+  }
+}
+
+function proxyUrlFromUrl(originalUrl) {
+  try {
+    if (typeof __uv$config === 'undefined') return originalUrl;
+    return location.origin + '/service/' + __uv$config.encodeUrl(originalUrl);
+  } catch { return originalUrl; }
+}
+
+// 指定タブをニュータブ(ランディングページ)にリセットする
+function resetTabToNewPage(tabId) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const content = document.querySelector(`.tab-content[data-id="${tabId}"]`);
+  if (!content) return;
+  tab.isNew = true;
+  tab.url = null;
+  tab.displayUrl = null;
+  tab.title = 'New Tab';
+  tab.favicon = null;
+  content.innerHTML = buildNewTabHTML(tabId);
+  setTimeout(() => initNewTabEngine(tabId), 0);
+  saveTabsToStorage();
+  renderTabs();
+  const addrEl = document.getElementById('address-input');
+  if (addrEl) addrEl.value = '';
+  updateNavButtons();
 }
 
 function onAddressKey(e) {
