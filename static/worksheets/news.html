@@ -162,7 +162,7 @@ main { margin-top: 56px; padding: 44px 44px 80px; flex: 1; max-width: 920px; wid
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
       TheCollapse
     </a>
-    <span class="version-badge" id="nav-version">v1.3.2</span>
+    <span class="version-badge" id="nav-version">…</span>
   </div>
   <div class="nav-right">
     <a href="../index.html" class="nav-btn">
@@ -172,10 +172,6 @@ main { margin-top: 56px; padding: 44px 44px 80px; flex: 1; max-width: 920px; wid
     <a href="news.html" class="nav-btn active">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8z"/></svg>
       News
-    </a>
-    <a href="chat.html" class="nav-btn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Chat
     </a>
     <a href="x.html" class="nav-btn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
@@ -226,22 +222,22 @@ function inlineMd(s) {
   return out;
 }
 
-/* readme.md 全文から「## 更新履歴」セクションだけを抜き出し、
-   ### v1.x ごとのリリースブロックに分割してパースする。 */
+/* readme.md 全文から「# 更新履歴」セクションだけを抜き出し、
+   ## v1.x ごとのリリースブロックに分割してパースする。 */
 function parseChangelog(md) {
   const lines = md.split(/\r?\n/);
 
-  // 「## 更新履歴」の開始位置を探す
+  // 「# 更新履歴」（h1）または「## 更新履歴」（h2）の開始位置を探す
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (/^##\s+更新履歴\s*$/.test(lines[i])) { start = i + 1; break; }
+    if (/^#{1,2}\s+更新履歴\s*$/.test(lines[i])) { start = i + 1; break; }
   }
   if (start === -1) return [];
 
-  // 次の「## 」見出し（更新履歴の終わり）まで
+  // 次の同レベル以上の見出し（更新履歴の終わり）まで
   let end = lines.length;
   for (let i = start; i < lines.length; i++) {
-    if (/^##\s+/.test(lines[i])) { end = i; break; }
+    if (/^#\s+/.test(lines[i])) { end = i; break; }
   }
 
   const section = lines.slice(start, end);
@@ -250,7 +246,8 @@ function parseChangelog(md) {
 
   for (const raw of section) {
     const line = raw.replace(/\s+$/,'');
-    const verMatch = line.match(/^###\s+(.+)$/);
+    // ## v1.x（h2）または ### v1.x（h3）をバージョン見出しとして認識
+    const verMatch = line.match(/^#{2,3}\s+(v[0-9].+)$/);
     if (verMatch) {
       current = { version: verMatch[1].trim(), blocks: [] };
       releases.push(current);
@@ -273,10 +270,10 @@ function renderReleaseBody(blocks) {
     if (line.trim() === '') { continue; }                 // 空行
 
     let m;
-    if ((m = line.match(/^####\s+(.+)$/))) {              // 小見出し
+    if ((m = line.match(/^#{3,4}\s+(.+)$/))) {           // ### または #### 小見出し
       closeList();
       html += `<h4>${inlineMd(m[1].trim())}</h4>`;
-    } else if ((m = line.match(/^#####\s+(.+)$/))) {      // さらに小見出し
+    } else if ((m = line.match(/^#####\s+(.+)$/))) {      // ##### さらに小見出し
       closeList();
       html += `<h5>${inlineMd(m[1].trim())}</h5>`;
     } else if ((m = line.match(/^[-*]\s+(.+)$/))) {       // リスト項目
@@ -342,6 +339,17 @@ async function loadNews() {
 }
 
 loadNews();
+
+// バージョンバッジを /api/version からも取得（news未ロード時のフォールバック）
+(async function() {
+  const el = document.getElementById('nav-version');
+  if (!el || el.textContent !== '…') return;
+  try {
+    const res = await fetch('/api/version', { cache: 'no-store' });
+    const data = await res.json();
+    if (data && data.version && el.textContent === '…') el.textContent = data.version;
+  } catch {}
+})();
 </script>
 </body>
 </html>
