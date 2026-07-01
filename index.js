@@ -130,11 +130,11 @@ app.get("/api/news", async (req, res) => {
 let _versionCache = { mtimeMs: 0, version: null };
 function _parseLatestVersion(markdown) {
   if (typeof markdown !== "string") return null;
-  // 「## 更新履歴」以降に絞り込む（無ければ全文を対象）
-  const histIdx = markdown.search(/^##\s+更新履歴\s*$/m);
+  // 「# 更新履歴」(h1) または「## 更新履歴」(h2) 以降に絞り込む（無ければ全文を対象）
+  const histIdx = markdown.search(/^#{1,2}\s+更新履歴\s*$/m);
   const scope = histIdx >= 0 ? markdown.slice(histIdx) : markdown;
-  // 最初の `### v1.2` / `### v1.3.5` などの見出しを拾う
-  const m = scope.match(/^###\s+(v[0-9][0-9A-Za-z.\-]*)\s*$/m);
+  // 最初の `## v1.2` / `## v1.3.5` または `### v1.2` などの見出しを拾う
+  const m = scope.match(/^#{2,3}\s+(v[0-9][0-9A-Za-z.\-]*)\s*$/m);
   return m ? m[1] : null;
 }
 app.get("/api/version", async (req, res) => {
