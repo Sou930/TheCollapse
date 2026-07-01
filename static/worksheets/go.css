@@ -171,6 +171,11 @@ html, body {
 body.ui-hidden #content-area {
   top: 0;
 }
+/* UI非表示時はタブバー・アドレスバーも非表示にする（クラスを唯一の真実の源にする） */
+body.ui-hidden #tab-bar,
+body.ui-hidden #nav-bar {
+  display: none;
+}
 
 .tab-content {
   display: none;
@@ -190,22 +195,29 @@ body.ui-hidden #content-area {
   background: #fff;
 }
 
-/* ======= New Tab Page ======= */
+/* ======= New Tab Page (index.htmlデザインに準拠) ======= */
 .newtab-page {
+  --nt-bg: #0e1117;
+  --nt-surface: #161b27;
+  --nt-surface2: #1c2233;
+  --nt-border: #252d3d;
+  --nt-border-hover: #3a4560;
+  --nt-text: #e8ecf3;
+  --nt-muted: #8892a4;
+  --nt-accent: #5b8fff;
+  --nt-dot: #1e2535;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%; height: 100%;
-  /* 星空背景 */
-  background-color: #0d0d12;
-  background-image:
-    radial-gradient(ellipse at 50% 0%, rgba(30,30,60,0.8) 0%, transparent 70%),
-    radial-gradient(circle, rgba(255,255,255,0.55) 1px, transparent 1px);
-  background-size: 100% 100%, 28px 28px;
+  background-color: var(--nt-bg);
+  background-image: radial-gradient(circle, var(--nt-dot) 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
   gap: 26px;
   padding: 20px;
   position: relative;
+  color: var(--nt-text);
 }
 
 /* 右下ウォーターマーク */
@@ -214,13 +226,14 @@ body.ui-hidden #content-area {
   position: absolute;
   bottom: 14px; right: 18px;
   font-size: 11px;
-  color: rgba(255,255,255,0.18);
+  color: var(--nt-muted);
+  opacity: 0.4;
   font-family: var(--font);
   pointer-events: none;
   letter-spacing: 0.03em;
 }
 
-/* ロゴ：横並び */
+/* ロゴ：横並び（index.html準拠 48px） */
 .nt-logo {
   display: flex;
   flex-direction: row;
@@ -228,148 +241,156 @@ body.ui-hidden #content-area {
   gap: 14px;
 }
 .nt-logo-icon {
-  width: 44px; height: 44px;
+  width: 48px; height: 48px;
   border-radius: 12px;
-  background: #1e1e2a;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 .nt-logo-text {
-  font-size: 28px;
+  font-size: 48px;
   font-weight: 700;
-  color: #ffffff;
-  letter-spacing: -0.01em;
+  color: var(--nt-text);
+  letter-spacing: -2px;
+  line-height: 1;
 }
 
-/* 検索バー */
+/* 検索バー（index.html準拠 54px / 14px角） */
 .nt-search-wrapper {
+  width: 100%;
+  max-width: 620px;
+}
+.nt-search-input-row {
   position: relative;
-  display: flex; align-items: center;
-  width: min(500px, 90vw);
-  height: 46px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 23px;
-  padding: 0 6px 0 4px;
-  gap: 4px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  backdrop-filter: blur(8px);
 }
-.nt-search-wrapper:focus-within {
-  border-color: rgba(255,255,255,0.3);
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.05);
-}
-
 .nt-engine-btn {
-  width: 34px; height: 34px;
+  position: absolute;
+  left: 14px; top: 50%;
+  transform: translateY(-50%);
+  width: 26px; height: 26px;
   border-radius: 50%; border: none;
   background: transparent; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   transition: background 0.1s;
+  padding: 0;
 }
-.nt-engine-btn:hover { background: rgba(255,255,255,0.08); }
-
-.engine-menu {
-  display: none;
-  position: absolute;
-  top: calc(100% + 8px); left: 0;
-  background: #1a1a24;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.6);
-  z-index: 50;
-  min-width: 170px;
-  padding: 4px 0;
-  overflow: hidden;
-}
-.engine-menu.open { display: block; }
-
-.engine-opt {
-  display: flex; align-items: center;
-  gap: 10px; padding: 9px 14px;
-  cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.8);
-  transition: background 0.1s;
-}
-.engine-opt:hover { background: rgba(255,255,255,0.06); }
-.engine-opt.selected { color: #fff; }
-
-.engine-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%; background: var(--accent);
-  margin-left: auto; opacity: 0; flex-shrink: 0;
-}
-.engine-opt.selected .engine-dot { opacity: 1; }
-
+.nt-engine-btn:hover { background: var(--nt-surface2); }
 .nt-search-input {
-  flex: 1; background: transparent;
-  border: none; outline: none;
-  color: #fff; font-size: 14px; font-family: var(--font);
-  min-width: 0;
+  width: 100%;
+  height: 54px;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
+  border-radius: 14px;
+  padding: 0 52px 0 50px;
+  font-size: 15px;
+  color: var(--nt-text);
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
 }
-.nt-search-input::placeholder { color: rgba(255,255,255,0.35); }
-
+.nt-search-input::placeholder { color: var(--nt-muted); }
+.nt-search-input:focus {
+  border-color: var(--nt-border-hover);
+  box-shadow: 0 0 0 3px rgba(91,143,255,0.12);
+}
 .nt-search-submit {
-  width: 32px; height: 32px;
+  position: absolute;
+  right: 14px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 28px;
   border-radius: 50%; border: none;
-  background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7);
+  background: var(--nt-surface2); color: var(--nt-muted);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  transition: background 0.12s, transform 0.1s;
+  transition: background 0.12s, color 0.12s;
+  padding: 0;
 }
-.nt-search-submit:hover { background: rgba(255,255,255,0.18); transform: scale(1.05); }
+.nt-search-submit:hover { background: var(--nt-border-hover); color: var(--nt-text); }
 
-/* ショートカット：円形アイコン */
+/* エンジン選択メニュー（index.html準拠） */
+.nt-engine-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px); left: 0;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+  z-index: 50;
+  min-width: 190px;
+  padding: 4px 0;
+  overflow: hidden;
+}
+.nt-engine-menu.open { display: block; }
+.nt-engine-option {
+  display: flex; align-items: center;
+  gap: 10px; padding: 10px 14px;
+  cursor: pointer; font-size: 14px; color: var(--nt-muted);
+  transition: background 0.1s;
+}
+.nt-engine-option:hover { background: var(--nt-surface2); }
+.nt-engine-option.selected { color: var(--nt-text); }
+.nt-engine-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1.5px solid var(--nt-border-hover);
+  margin-left: auto; flex-shrink: 0;
+}
+.nt-engine-option.selected .nt-engine-dot {
+  background: var(--nt-accent);
+  border-color: var(--nt-accent);
+}
+
+/* ショートカット（index.html準拠 64px円） */
 .nt-shortcuts {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 20px;
   justify-content: center;
-  max-width: 520px;
+  margin-top: 4px;
 }
 
 .nt-shortcut {
   display: flex; flex-direction: column;
-  align-items: center; gap: 8px;
+  align-items: center; gap: 10px;
   text-decoration: none;
-  padding: 10px 12px;
-  border-radius: 12px;
-  transition: background 0.15s;
   cursor: pointer;
 }
-.nt-shortcut:hover { background: rgba(255,255,255,0.06); }
-
 .nt-shortcut-icon {
-  width: 56px; height: 56px;
+  width: 64px; height: 64px;
   border-radius: 50%;
-  background: #1e1e2a;
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
-  transition: border-color 0.15s, transform 0.15s;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
 }
 .nt-shortcut:hover .nt-shortcut-icon {
-  border-color: rgba(255,255,255,0.2);
-  transform: scale(1.06);
+  background: var(--nt-dot);
+  border-color: var(--nt-border-hover);
+  transform: translateY(-2px);
 }
-.nt-shortcut-icon img { width: 30px; height: 30px; object-fit: contain; }
+.nt-shortcut-icon img { width: 34px; height: 34px; object-fit: contain; border-radius: 50%; }
 
 /* 「New」ショートカット用プラスアイコン */
 .nt-shortcut-icon--new {
-  font-size: 24px;
-  color: rgba(255,255,255,0.4);
+  font-size: 28px;
+  color: var(--nt-muted);
   line-height: 1;
 }
 
 .nt-shortcut-label {
-  font-size: 11.5px;
-  color: rgba(255,255,255,0.55);
+  font-size: 13px;
+  color: var(--nt-muted);
   white-space: nowrap;
   font-weight: 400;
 }
-.nt-shortcut:hover .nt-shortcut-label { color: rgba(255,255,255,0.85); }
+.nt-shortcut:hover .nt-shortcut-label { color: var(--nt-text); }
 
 /* ======= Show UI Button ======= */
 #show-ui-btn {

@@ -293,6 +293,8 @@ function renderTabContent(tab) {
     iframe.setAttribute('referrerpolicy', 'no-referrer');
     iframe.onload = () => {
       onFrameLoad(tab.id, iframe);
+      // 内部ナビゲーション(SPA pushState等)追跡トラッカーを起動
+      attachFrameTracker(tab.id, iframe);
       // Elementsパネルが開いていたら再インスペクト
       if (document.getElementById('elements-panel').classList.contains('open') && tab.id === activeTabId) {
         setTimeout(_elemInspectActive, 100);
@@ -353,7 +355,83 @@ function decodeProxyUrl(src) {
   return src;
 }
 
-// ======= ニュータブHTML =======
+// ======= iframe内部ナビゲーション追跡 (Task 3) =======
+// onFrameLoad は完全な onload 発火時しか呼ばれない。UVプロキシ内での
+// SPA式 pushState/replaceState ナビゲーションは onload を発火せず、
+// iframe.src も更新されないことがあるため、アドレスバーが古いままになる。
+// このトラッカーは contentWindow.location.href のポーリングと src 属性の
+// MutationObserver で内部ナビゲーションを検知し、アドレスバー・タブ・履歴を同期する。
+function attachFrameTracker(tabId, iframe) {
+  if (!iframe) return;
+  // 既存のトラッカーがあればクリーンアップ
+  if (iframe._tcTracker) {
+    try { clearInterval(iframe._tcTracker.interval); } catch {}
+    try { iframe._tcTracker.observer && iframe._tcTracker.observer.disconnect(); } catch {}
+  }
+  let lastLoc = '';
+  const tracker = { interval: null, observer: null };
+  iframe._tcTracker = tracker;
+
+  function sync() {
+    let loc = '';
+    try { loc = iframe.contentWindow.location.href; } catch {}
+    if (!loc || loc === 'about:blank' || loc === lastLoc) return;
+    lastLoc = loc;
+    syncFrameLocation(tabId, iframe, loc);
+  }
+
+  // src 属性変化を監視（フルナビゲーションの補助）
+  try {
+    tracker.observer = new MutationObserver(() => {
+      const s = iframe.src;
+      if (s && s !== 'about:blank') sync();
+    });
+    tracker.observer.observe(iframe, { attributes: true, attributeFilter: ['src'] });
+  } catch {}
+
+  // contentWindow.location.href をポーリング（SPA内部ナビゲーション検知）
+  tracker.interval = setInterval(() => {
+    if (!document.body.contains(iframe)) {
+      try { clearInterval(tracker.interval); } catch {}
+      try { tracker.observer && tracker.observer.disconnect(); } catch {}
+      return;
+    }
+    sync();
+  }, 1000);
+}
+
+// トラッカー検知時のアドレスバー・タブ・履歴同期
+function syncFrameLocation(tabId, iframe, loc) {
+  try {
+    const decoded = decodeProxyUrl(loc);
+    const tab = tabs.find(t => t.id === tabId);
+    if (!tab) return;
+    // 同一URLなら更新不要（onFrameLoad と重複しないようガード）
+    if (tab.url === loc && tab.displayUrl === decoded) return;
+    tab.url = loc;
+    tab.displayUrl = decoded;
+    tab.isNew = false;
+    try {
+      const title = iframe.contentDocument?.title;
+      if (title) tab.title = title;
+      else if (decoded) tab.title = decoded;
+    } catch { if (decoded) tab.title = decoded; }
+    try {
+      const u = new URL(decoded);
+      tab.favicon = 'https://www.google.com/s2/favicons?domain=' + u.hostname + '&sz=32';
+    } catch {}
+    saveTabsToStorage();
+    renderTabs();
+    if (tabId === activeTabId) {
+      document.getElementById('address-input').value = decoded || loc;
+      updateNavButtons();
+      renderBookmarkBtn();
+    }
+    addHistoryEntry({ title: tab.title, url: decoded || loc, favicon: tab.favicon || '' });
+  } catch(e) {}
+}
+
+// ======= ニュータブHTML (index.htmlデザイン準拠) =======
 function buildNewTabHTML(tabId) {
   return `
   <div class="newtab-page" id="nt-${tabId}">
@@ -365,32 +443,34 @@ function buildNewTabHTML(tabId) {
     </div>
 
     <div class="nt-search-wrapper" id="nt-sw-${tabId}">
-      <button class="nt-engine-btn" id="nt-eb-${tabId}" onclick="ntToggleEngine(${tabId}, event)">
-        <span id="nt-ei-${tabId}"></span>
-      </button>
-      <div class="engine-menu" id="nt-em-${tabId}">
-        <div class="engine-opt" id="nt-eo-google-${tabId}" onclick="ntSetEngine('google', ${tabId})">
-          ${ENGINE_ICONS.google} Google <div class="engine-dot"></div>
-        </div>
-        <div class="engine-opt" id="nt-eo-bing-${tabId}" onclick="ntSetEngine('bing', ${tabId})">
-          ${ENGINE_ICONS.bing} Bing <div class="engine-dot"></div>
-        </div>
-        <div class="engine-opt" id="nt-eo-duckduckgo-${tabId}" onclick="ntSetEngine('duckduckgo', ${tabId})">
-          ${ENGINE_ICONS.duckduckgo} DuckDuckGo <div class="engine-dot"></div>
-        </div>
-        <div class="engine-opt" id="nt-eo-yahoo-${tabId}" onclick="ntSetEngine('yahoo', ${tabId})">
-          ${ENGINE_ICONS.yahoo} Yahoo! Japan <div class="engine-dot"></div>
-        </div>
-        <div class="engine-opt" id="nt-eo-brave-${tabId}" onclick="ntSetEngine('brave', ${tabId})">
-          ${ENGINE_ICONS.brave} Brave <div class="engine-dot"></div>
+      <div class="nt-search-input-row">
+        <button class="nt-engine-btn" id="nt-eb-${tabId}" onclick="ntToggleEngine(${tabId}, event)">
+          <span id="nt-ei-${tabId}"></span>
+        </button>
+        <form onsubmit="ntSearch(event, ${tabId})" style="width:100%">
+          <input type="text" class="nt-search-input" id="nt-si-${tabId}" placeholder="Search or type URL" autocomplete="off">
+        </form>
+        <button class="nt-search-submit" onclick="ntSearch(event, ${tabId})">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+        <div class="nt-engine-menu" id="nt-em-${tabId}">
+          <div class="nt-engine-option" id="nt-eo-google-${tabId}" onclick="ntSetEngine('google', ${tabId})">
+            ${ENGINE_ICONS.google} Google <div class="nt-engine-dot"></div>
+          </div>
+          <div class="nt-engine-option" id="nt-eo-bing-${tabId}" onclick="ntSetEngine('bing', ${tabId})">
+            ${ENGINE_ICONS.bing} Bing <div class="nt-engine-dot"></div>
+          </div>
+          <div class="nt-engine-option" id="nt-eo-duckduckgo-${tabId}" onclick="ntSetEngine('duckduckgo', ${tabId})">
+            ${ENGINE_ICONS.duckduckgo} DuckDuckGo <div class="nt-engine-dot"></div>
+          </div>
+          <div class="nt-engine-option" id="nt-eo-yahoo-${tabId}" onclick="ntSetEngine('yahoo', ${tabId})">
+            ${ENGINE_ICONS.yahoo} Yahoo! Japan <div class="nt-engine-dot"></div>
+          </div>
+          <div class="nt-engine-option" id="nt-eo-brave-${tabId}" onclick="ntSetEngine('brave', ${tabId})">
+            ${ENGINE_ICONS.brave} Brave <div class="nt-engine-dot"></div>
+          </div>
         </div>
       </div>
-      <form onsubmit="ntSearch(event, ${tabId})">
-        <input type="text" class="nt-search-input" id="nt-si-${tabId}" placeholder="Search or type URL" autocomplete="off">
-      </form>
-      <button class="nt-search-submit" onclick="ntSearch(event, ${tabId})">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      </button>
     </div>
 
     <div class="nt-shortcuts">
@@ -523,7 +603,11 @@ function navigateTab(tabId, query) {
         'web-share; publickey-credentials-get; screen-wake-lock');
       iframe.setAttribute('allowfullscreen', '');
       iframe.setAttribute('referrerpolicy', 'no-referrer');
-      iframe.onload = () => onFrameLoad(tabId, iframe);
+      iframe.onload = () => {
+        onFrameLoad(tabId, iframe);
+        // 内部ナビゲーション(SPA pushState等)追跡トラッカーを起動
+        attachFrameTracker(tabId, iframe);
+      };
       content.appendChild(iframe);
       tab.url = proxyUrl;
       tab.displayUrl = url;
@@ -622,7 +706,11 @@ function fallbackToProxy(tabId, url) {
         'web-share; publickey-credentials-get; screen-wake-lock');
       iframe.setAttribute('allowfullscreen', '');
       iframe.setAttribute('referrerpolicy', 'no-referrer');
-      iframe.onload = () => onFrameLoad(tabId, iframe);
+      iframe.onload = () => {
+        onFrameLoad(tabId, iframe);
+        // 内部ナビゲーション(SPA pushState等)追跡トラッカーを起動
+        attachFrameTracker(tabId, iframe);
+      };
       content.appendChild(iframe);
       tab.url = proxyUrl;
       tab.displayUrl = url;
@@ -1424,18 +1512,16 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ======= UI非表示 =======
+// body.ui-hidden クラスを「唯一の真実の源」にする。
+// バーの表示/非表示も #content-area の余白もすべてこのクラスだけで制御し、
+// インライン style.display とクラスの二重管理による当たり判定のズレを防ぐ。
 function hideUI() {
-  document.getElementById('tab-bar').style.display = 'none';
-  document.getElementById('nav-bar').style.display = 'none';
-  document.getElementById('show-ui-btn').classList.add('visible');
-  // バーを隠した分、コンテンツ領域を画面上端まで広げる（上部の空白を防ぐ）
   document.body.classList.add('ui-hidden');
+  document.getElementById('show-ui-btn').classList.add('visible');
 }
 function showUI() {
-  document.getElementById('tab-bar').style.display = '';
-  document.getElementById('nav-bar').style.display = '';
-  document.getElementById('show-ui-btn').classList.remove('visible');
   document.body.classList.remove('ui-hidden');
+  document.getElementById('show-ui-btn').classList.remove('visible');
 }
 
 // ======= about:blank（新しいネイティブタブで表示） =======
