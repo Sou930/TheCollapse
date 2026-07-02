@@ -235,22 +235,70 @@ function newTab() {
 }
 
 function renderTabs() {
-  const bar = document.getElementById('tab-bar');
-  // 既存タブ要素削除（newTabボタン以外）
-  bar.querySelectorAll('.tab').forEach(t => t.remove());
-  const newBtn = document.getElementById('new-tab-btn');
-  tabs.forEach(tab => {
-    const el = document.createElement('div');
-    el.className = 'tab' + (tab.id === activeTabId ? ' active' : '');
-    el.dataset.id = tab.id;
-    el.onclick = () => setActiveTab(tab.id);
-    el.innerHTML = `
-      ${tab.favicon ? `<img class="tab-favicon" src="${tab.favicon}" onerror="this.style.display='none'">` : `<svg class="tab-favicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#8892a4"><circle cx="12" cy="12" r="10"/></svg>`}
-      <span class="tab-title">${escHtml(tab.title)}</span>
-      <span class="tab-close" onclick="closeTab(${tab.id}, event)">✕</span>
-    `;
-    bar.insertBefore(el, newBtn);
-  });
+  // タブカウントバッジを更新
+  const badge = document.getElementById('tab-count-badge');
+  if (badge) badge.textContent = tabs.length;
+  // タブモーダルリストも更新（開いていれば）
+  const modal = document.getElementById('tabs-modal');
+  if (modal && modal.classList.contains('open')) {
+    renderTabsModal();
+  }
+}
+
+function renderTabsModal() {
+  const list = document.getElementById('tabs-modal-list');
+  if (!list) return;
+  list.innerHTML = tabs.map(tab => {
+    const isActive = tab.id === activeTabId;
+    const faviconHtml = tab.favicon
+      ? `<img class="tab-card-favicon" src="${escHtml(tab.favicon)}" onerror="this.style.display='none'">`
+      : `<svg class="tab-card-favicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#9aa0a6"><circle cx="12" cy="12" r="10"/></svg>`;
+    return `
+      <div class="tab-card${isActive ? ' active-card' : ''}" onclick="selectTabFromModal(${tab.id})">
+        <div class="tab-card-active-dot"></div>
+        <div class="tab-card-thumb">
+          <div class="tab-card-thumb-icon">
+            ${tab.favicon ? `<img src="${escHtml(tab.favicon)}" style="width:28px;height:28px;object-fit:contain;border-radius:6px;opacity:0.5;">` : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#9aa0a6"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`}
+          </div>
+        </div>
+        <div class="tab-card-info">
+          ${faviconHtml}
+          <span class="tab-card-title">${escHtml(tab.title || 'New Tab')}</span>
+          <button class="tab-card-close" onclick="closeTab(${tab.id}, event)" title="閉じる">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+  // タイトルも更新
+  const title = document.getElementById('tabs-modal-title');
+  if (title) title.textContent = `タブ (${tabs.length})`;
+}
+
+function selectTabFromModal(id) {
+  setActiveTab(id);
+  closeTabsModal();
+}
+
+function openTabsModal() {
+  renderTabsModal();
+  document.getElementById('tabs-modal').classList.add('open');
+}
+
+function closeTabsModal() {
+  document.getElementById('tabs-modal').classList.remove('open');
+}
+
+function closeTabsModalOutside(e) {
+  if (e.target === document.getElementById('tabs-modal')) closeTabsModal();
+}
+
+function focusAddressInput() {
+  const input = document.getElementById('address-input');
+  if (input) {
+    input.focus();
+    input.select();
+  }
 }
 
 function renderTabContent(tab) {
@@ -913,8 +961,10 @@ function goHome() {
 }
 function updateNavButtons() {
   const tab = tabs.find(t => t.id === activeTabId);
-  document.getElementById('back-btn').disabled = !tab || tab.isNew;
-  document.getElementById('forward-btn').disabled = !tab || tab.isNew;
+  const backBtn = document.getElementById('back-btn');
+  const forwardBtn = document.getElementById('forward-btn');
+  if (backBtn) backBtn.disabled = !tab || tab.isNew;
+  if (forwardBtn) forwardBtn.disabled = !tab || tab.isNew;
 }
 
 // ======= ブックマーク =======
