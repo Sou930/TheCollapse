@@ -1025,8 +1025,145 @@ body.ui-hidden #content-area {
 
 /* ======= iPad / Tablet tuning (Chrome app style) ======= */
 @media (min-width: 768px) {
+  :root {
+    --bg: #f3f4f8;
+    --surface: #f7f8fc;
+    --surface2: #ffffff;
+    --surface3: #eef1f8;
+    --border: #d7dbea;
+    --text: #1f2430;
+    --muted: #667089;
+    --accent: #4a79ff;
+    --bottom-bar-h: 54px;
+  }
+
+  html, body {
+    background: #12141d;
+  }
+
+  #tablet-top-strip {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 130;
+    background: #141925;
+    border-bottom: 1px solid #242a39;
+    padding: 6px 14px 8px;
+  }
+
+  .tablet-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #d6dbef;
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.9;
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+
+  .tablet-status-right {
+    font-weight: 600;
+  }
+
+  .tablet-tab-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .tablet-fake-tab {
+    min-width: 170px;
+    max-width: 280px;
+    height: 32px;
+    border-radius: 11px 11px 0 0;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #b6bfd8;
+    background: #20283a;
+    border: 1px solid #2d3447;
+    border-bottom: none;
+    font-size: 12px;
+  }
+
+  .tablet-fake-tab.active {
+    background: #f7f8fc;
+    color: #1f2430;
+  }
+
+  .tab-favicon-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #eb5d57;
+    flex-shrink: 0;
+  }
+
+  .tab-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .tab-close-mark {
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.7;
+  }
+
+  #bottom-nav {
+    top: 57px;
+    bottom: auto;
+    height: calc(var(--bottom-bar-h) + var(--safe-bottom));
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 10px;
+    gap: 6px;
+    z-index: 120;
+  }
+
+  #address-bar-center {
+    max-width: 720px;
+    margin: 0 auto;
+    height: 38px;
+    border-radius: 19px;
+    background: #ffffff;
+    border-color: #d5daea;
+    box-shadow: 0 1px 0 rgba(18, 20, 29, 0.06);
+  }
+
+  #address-input {
+    text-align: left;
+    font-size: 13px;
+  }
+
+  .bottom-nav-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+
+  #tab-count-badge {
+    top: 2px;
+    right: 2px;
+  }
+
+  #content-area {
+    top: calc(57px + var(--bottom-bar-h) + var(--safe-bottom));
+    bottom: 0;
+    background: #eef1f8;
+  }
+
   .newtab-page {
-    padding: 56px clamp(28px, 6vw, 72px) 24px;
+    padding: 48px clamp(28px, 6vw, 72px) 24px;
   }
 
   .nt-logo {
@@ -1087,6 +1224,115 @@ body.ui-hidden #content-area {
   #tabs-modal-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  #more-options-panel,
+  #bookmark-panel,
+  #history-panel,
+  #go-account-menu {
+    top: calc(57px + var(--bottom-bar-h) + 8px);
+    bottom: auto;
+    right: 12px;
+    border-radius: 16px;
+    background: #ffffff;
+    border-color: #d8dced;
+    box-shadow: 0 16px 40px rgba(20, 25, 37, 0.24);
+  }
+
+  #more-options-panel {
+    width: 300px;
+    padding: 8px 0;
+  }
+
+  .mo-quick-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 0 8px 8px;
+  }
+
+  .mo-quick {
+    border: none;
+    background: transparent;
+    border-radius: 10px;
+    padding: 8px 4px;
+    color: #4b556f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    line-height: 1.1;
+    cursor: pointer;
+  }
+
+  .mo-quick:hover {
+    background: #f2f5fc;
+    color: #1f2430;
+  }
+
+  .mo-quick span {
+    text-align: center;
+  }
+
+  .mo-item {
+    color: #22283a;
+    padding: 11px 14px;
+    font-size: 15px;
+    justify-content: space-between;
+  }
+
+  .mo-item svg {
+    order: 2;
+    color: #59637e;
+    width: 16px;
+    height: 16px;
+  }
+
+  .mo-item:hover {
+    background: #f3f6fd;
+  }
+
+  .mo-divider {
+    background: #e7eaf3;
+    margin: 4px 0;
+  }
+
+  .mo-zoom-row {
+    background: #fafbff;
+    margin: 4px 10px;
+    border: 1px solid #e3e8f4;
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+
+  .zoom-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: #ffffff;
+    color: #263148;
+    border-color: #d6dcec;
+  }
+
+  #zoom-level-display {
+    color: #46536e;
+  }
+
+  body.ui-hidden #tablet-top-strip {
+    display: none;
+  }
+}
+
+#tablet-top-strip {
+  display: none;
+}
+
+.mo-quick-row {
+  display: none;
+}
+
+.mo-quick {
+  font-family: var(--font);
 }
 
 @media (max-width: 540px) {
