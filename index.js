@@ -2,9 +2,14 @@ import { createBareServer } from "@nebula-services/bare-server-node";
 import wisp from "wisp-server-node";
 import express from "express";
 import { createServer } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { SocksProxyAgent } from "socks-proxy-agent";
-const socksProxyAgent = new SocksProxyAgent("socks://localhost:40000");
 import { uvPath } from "@titaniumnetwork-dev/ultraviolet";
+
+const DEFAULT_X_SEARCH_PROXY = "socks://localhost:40000";
+const X_SEARCH_PROXY =
+  (process.env.X_SEARCH_PROXY || process.env.ALL_PROXY || process.env.all_proxy || DEFAULT_X_SEARCH_PROXY).trim();
+const socksProxyAgent = X_SEARCH_PROXY ? new SocksProxyAgent(X_SEARCH_PROXY) : null;
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { writeFile, mkdir, readFile } from "node:fs/promises";
@@ -193,6 +198,73 @@ setInterval(() => {
   for (const [k, v] of _xRlBucket) if (v.resetAt < now) _xRlBucket.delete(k);
 }, 5 * 60_000).unref?.();
 
+function proxyFetchJson(url, { headers = {}, timeoutMs = 15_000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(
+      url,
+      {
+        method: "GET",
+        headers,
+        agent: socksProxyAgent,
+      },
+      (upstreamRes) => {
+        let raw = "";
+        upstreamRes.setEncoding("utf8");
+        upstreamRes.on("data", (chunk) => {
+          raw += chunk;
+        });
+        upstreamRes.on("end", () => {
+          resolve({
+            ok: (upstreamRes.statusCode || 500) >= 200 && (upstreamRes.statusCode || 500) < 300,
+            status: upstreamRes.statusCode || 500,
+            data: raw,
+          });
+        });
+      }
+    );
+
+    req.on("error", reject);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(Object.assign(new Error("x-search upstream timeout"), { name: "AbortError" }));
+    });
+    req.end();
+  });
+}
+
+async function fetchXSearchUpstream(url, headers) {
+  // SOCKS プロキシが利用可能なら最優先で使用する。
+  // プロキシダウン時は従来どおり直接 fetch にフォールバックして可用性を維持する。
+  if (socksProxyAgent) {
+    try {
+      return await proxyFetchJson(url, { headers, timeoutMs: 15_000 });
+    } catch (e) {
+      const code = String(e?.code || "");
+      if (["ECONNREFUSED", "ECONNRESET", "EHOSTUNREACH", "ETIMEDOUT", "ENOTFOUND"].includes(code)) {
+        console.warn(`x-search proxy unreachable (${code}); fallback to direct fetch`);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const direct = await fetch(url, {
+      signal: controller.signal,
+      headers,
+    });
+    const raw = await direct.text();
+    return {
+      ok: direct.ok,
+      status: direct.status,
+      data: raw,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 app.get("/api/x-search", xRateLimit, async (req, res) => {
   try {
     const q = typeof req.query.p === "string" ? req.query.p.trim() : "";
@@ -226,30 +298,26 @@ app.get("/api/x-search", xRateLimit, async (req, res) => {
     }
 
     const upstream = `${X_SEARCH_BASE}?${params.toString()}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
-    let upstreamRes;
-    try {
-      upstreamRes = await fetch(upstream, {
-        signal: controller.signal,
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-          Accept: "application/json, text/plain, */*",
-          "Accept-Language": "ja,en;q=0.9",
-          Referer: "https://search.yahoo.co.jp/realtime/search",
-        },
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
+    const upstreamRes = await fetchXSearchUpstream(upstream, {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "ja,en;q=0.9",
+      Referer: "https://search.yahoo.co.jp/realtime/search",
+    });
 
     if (!upstreamRes.ok) {
       return res
         .status(502)
         .json({ error: `上流APIエラー (${upstreamRes.status})` });
     }
-    const data = await upstreamRes.json();
+
+    let data;
+    try {
+      data = JSON.parse(upstreamRes.data);
+    } catch {
+      return res.status(502).json({ error: "上流APIの応答が不正です" });
+    }
 
     // レスポンスを必要最小限に整形して返す（生レスポンスは大きいため）。
     // Yahoo!リアルタイム検索の実フィールド名に合わせる:
