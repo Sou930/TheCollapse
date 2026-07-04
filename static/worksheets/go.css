@@ -1022,3 +1022,99 @@ body.ui-hidden #content-area {
   transition: background 0.1s, color 0.1s;
 }
 .addr-icon-btn:hover { background: var(--surface2); color: var(--text); }
+
+/* ======= iPad / Tablet tuning (Chrome app style) ======= */
+@media (min-width: 768px) {
+  .newtab-page {
+    padding: 56px clamp(28px, 6vw, 72px) 24px;
+  }
+
+  .nt-logo {
+    margin-bottom: 30px;
+  }
+
+  .nt-logo-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+  }
+
+  .nt-logo-text {
+    font-size: 28px;
+  }
+
+  .nt-search-wrapper {
+    max-width: 760px;
+    margin-bottom: 32px;
+  }
+
+  .nt-search-input {
+    height: 56px;
+    border-radius: 28px;
+    padding: 0 54px 0 50px;
+    font-size: 17px;
+  }
+
+  .nt-shortcuts {
+    max-width: 560px;
+    gap: 22px;
+  }
+
+  .nt-shortcut-icon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .nt-shortcut-icon img {
+    width: 32px;
+    height: 32px;
+  }
+
+  .nt-shortcut-label {
+    font-size: 13px;
+    max-width: 84px;
+  }
+
+  #tabs-modal-inner {
+    max-width: 900px;
+    left: 50%;
+    right: auto;
+    width: 100%;
+    transform: translateX(-50%);
+    border-radius: 20px 20px 0 0;
+  }
+
+  #tabs-modal-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .newtab-page {
+    padding: 30px 14px 16px;
+  }
+
+  .nt-search-wrapper {
+    margin-bottom: 22px;
+  }
+
+  .nt-shortcuts {
+    gap: 10px;
+    max-width: 100%;
+  }
+
+  .nt-shortcut {
+    padding: 6px 4px;
+  }
+
+  .nt-shortcut-icon {
+    width: 46px;
+    height: 46px;
+  }
+
+  .nt-shortcut-icon img {
+    width: 24px;
+    height: 24px;
+  }
+}
+

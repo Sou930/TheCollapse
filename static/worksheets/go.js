@@ -33,53 +33,94 @@ function _hideLoading() {
   setTimeout(() => { overlay.style.display = 'none'; }, 300);
 }
 
+function _withTimeout(promise, ms = 8000, label = 'operation') {
+  let timer = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+  });
+  return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 // ======= 初期化 =======
 window.addEventListener('DOMContentLoaded', async () => {
   _showLoading('読み込み中...');
 
-  // アカウント復元
-  if (typeof TC_ACCOUNT !== 'undefined') {
-    _showLoading('アカウントを復元しています...');
-    await TC_ACCOUNT.restoreSession();
-    currentEngine = TC_ACCOUNT.getEngine();
-    renderGoAccountUI();
-    // ログイン中ならUV cookieをサーバーから復元
-    if (TC_ACCOUNT.currentUser()) {
-      _showLoading('セッションを復元しています...');
-      await TC_ACCOUNT.restoreCookies();
-    }
-  }
-
-  // セッションから最初のURL取得
-  const initialURL = sessionStorage.getItem('uvURL');
-  sessionStorage.removeItem('uvURL');
-
-  // 保存されたタブを復元、なければ新規
-  _showLoading('タブを復元しています...');
-  await loadTabsFromStorage();
-
-  if (initialURL) {
-    const fullURL = '/service/' + initialURL;
-    // sessionStorage 経由の URL は __uv$config.encodeUrl 済みなので復号して
-    // YouTube 動画再生 URL なら直接接続経路に流す。
-    let decodedInitial = null;
-    try {
-      if (typeof __uv$config !== 'undefined' && __uv$config.decodeUrl) {
-        decodedInitial = __uv$config.decodeUrl(initialURL);
+  try {
+    // アカウント復元
+    if (typeof TC_ACCOUNT !== 'undefined') {
+      _showLoading('アカウントを復元しています...');
+      try {
+        await _withTimeout(TC_ACCOUNT.restoreSession(), 8000, 'restoreSession');
+      } catch (e) {
+        try { console.warn('[go] restoreSession timeout/fail:', e && e.message); } catch {}
       }
-    } catch {}
+      currentEngine = TC_ACCOUNT.getEngine();
+      renderGoAccountUI();
+      // ログイン中ならUV cookieをサーバーから復元
+      if (TC_ACCOUNT.currentUser()) {
+        _showLoading('セッションを復元しています...');
+        try {
+          await _withTimeout(TC_ACCOUNT.restoreCookies(), 7000, 'restoreCookies');
+        } catch (e) {
+          try { console.warn('[go] restoreCookies timeout/fail:', e && e.message); } catch {}
+        }
+      }
+    }
 
-    if (decodedInitial &&
-        typeof TC_YT_EDU !== 'undefined' &&
-        TC_YT_EDU.isYouTubeWatchUrl(decodedInitial)) {
-      const vid = TC_YT_EDU.extractVideoId(decodedInitial);
-      if (vid) {
-        // 空タブを作って、直接再生にスイッチ
+    // セッションから最初のURL取得
+    const initialURL = sessionStorage.getItem('uvURL');
+    sessionStorage.removeItem('uvURL');
+
+    // 保存されたタブを復元、なければ新規
+    _showLoading('タブを復元しています...');
+    try {
+      await _withTimeout(loadTabsFromStorage(), 8000, 'loadTabsFromStorage');
+    } catch (e) {
+      try { console.warn('[go] loadTabsFromStorage timeout/fail:', e && e.message); } catch {}
+    }
+
+    if (initialURL) {
+      const fullURL = '/service/' + initialURL;
+      // sessionStorage 経由の URL は __uv$config.encodeUrl 済みなので復号して
+      // YouTube 動画再生 URL なら直接接続経路に流す。
+      let decodedInitial = null;
+      try {
+        if (typeof __uv$config !== 'undefined' && __uv$config.decodeUrl) {
+          decodedInitial = __uv$config.decodeUrl(initialURL);
+        }
+      } catch {}
+
+      if (decodedInitial &&
+          typeof TC_YT_EDU !== 'undefined' &&
+          TC_YT_EDU.isYouTubeWatchUrl(decodedInitial)) {
+        const vid = TC_YT_EDU.extractVideoId(decodedInitial);
+        if (vid) {
+          // 空タブを作って、直接再生にスイッチ
+          const newId = createTab(null, true);
+          setTimeout(() => {
+            try { navigateTabYouTubeDirect(newId, decodedInitial, vid); } catch (e) {
+              try { console.warn('[YT-EDU] init direct play error:', e && e.message); } catch {}
+              // 失敗したら通常のプロキシ経路で開く
+              try {
+                const t = tabs.find(x => x.id === newId);
+                if (t) { t.url = fullURL; t.displayUrl = decodedInitial; }
+                setActiveTab(newId);
+              } catch {}
+            }
+          }, 30);
+        } else {
+          createTab(fullURL, false);
+        }
+      } else if (decodedInitial && isFrameBustingSite(decodedInitial)) {
+        // X / Twitter 等: アプリ内 iframe では操作できないため、
+        // トップレベルの新しいウィンドウでプロキシ経由開きする。
+        // 元タブはニュータブ(ランディング)にする。
         const newId = createTab(null, true);
         setTimeout(() => {
-          try { navigateTabYouTubeDirect(newId, decodedInitial, vid); } catch (e) {
-            try { console.warn('[YT-EDU] init direct play error:', e && e.message); } catch {}
-            // 失敗したら通常のプロキシ経路で開く
+          try { openTopLevelProxy(newId, decodedInitial); } catch (e) {
+            try { console.warn('[TC] init frame-bust open error:', e && e.message); } catch {}
             try {
               const t = tabs.find(x => x.id === newId);
               if (t) { t.url = fullURL; t.displayUrl = decodedInitial; }
@@ -88,56 +129,53 @@ window.addEventListener('DOMContentLoaded', async () => {
           }
         }, 30);
       } else {
-        createTab(fullURL, false);
-      }
-    } else if (decodedInitial && isFrameBustingSite(decodedInitial)) {
-      // X / Twitter 等: アプリ内 iframe では操作できないため、
-      // トップレベルの新しいウィンドウでプロキシ経由開きする。
-      // 元タブはニュータブ(ランディング)にする。
-      const newId = createTab(null, true);
-      setTimeout(() => {
-        try { openTopLevelProxy(newId, decodedInitial); } catch (e) {
-          try { console.warn('[TC] init frame-bust open error:', e && e.message); } catch {}
-          try {
-            const t = tabs.find(x => x.id === newId);
-            if (t) { t.url = fullURL; t.displayUrl = decodedInitial; }
-            setActiveTab(newId);
-          } catch {}
+        // 既存タブがあれば新しいタブを追加、なければ最初のタブをそのURLに
+        if (tabs.length === 0) {
+          createTab(fullURL, false);
+        } else {
+          createTab(fullURL, false);
         }
-      }, 30);
-    } else {
-      // 既存タブがあれば新しいタブを追加、なければ最初のタブをそのURLに
-      if (tabs.length === 0) {
-        createTab(fullURL, false);
-      } else {
-        createTab(fullURL, false);
       }
+    } else if (tabs.length === 0) {
+      createTab(null, false); // ニュータブ
+    } else {
+      // 最後のアクティブタブを表示
+      const lastActive = tabs[tabs.length - 1];
+      setActiveTab(lastActive.id);
     }
-  } else if (tabs.length === 0) {
-    createTab(null, false); // ニュータブ
-  } else {
-    // 最後のアクティブタブを表示
-    const lastActive = tabs[tabs.length - 1];
-    setActiveTab(lastActive.id);
+
+    renderBookmarkBtn();
+    document.addEventListener('click', e => {
+      const bookmarkPanel = document.getElementById('bookmark-panel');
+      const bookmarkTrigger = document.getElementById('bookmark-btn') || document.getElementById('add-bookmark-btn');
+      if (bookmarkPanel &&
+          !bookmarkPanel.contains(e.target) &&
+          (!bookmarkTrigger || !bookmarkTrigger.contains(e.target))) {
+        bookmarkPanel.classList.remove('open');
+      }
+
+      const morePanel = document.getElementById('more-options-panel');
+      const moreBtn = document.getElementById('more-options-btn');
+      if (morePanel &&
+          !morePanel.contains(e.target) &&
+          (!moreBtn || !moreBtn.contains(e.target))) {
+        morePanel.classList.remove('open');
+      }
+
+      const historyPanel = document.getElementById('history-panel');
+      const historyTrigger = document.getElementById('history-btn');
+      if (historyPanel &&
+          !historyPanel.contains(e.target) &&
+          (!historyTrigger || !historyTrigger.contains(e.target))) {
+        historyPanel.classList.remove('open');
+      }
+    });
+  } catch (e) {
+    try { console.error('[go] initialization error:', e); } catch {}
+    if (tabs.length === 0) createTab(null, false);
+  } finally {
+    _hideLoading();
   }
-
-  _hideLoading();
-
-  renderBookmarkBtn();
-  document.addEventListener('click', e => {
-    if (!document.getElementById('bookmark-panel').contains(e.target) &&
-        !document.getElementById('bookmark-btn').contains(e.target)) {
-      document.getElementById('bookmark-panel').classList.remove('open');
-    }
-    if (!document.getElementById('more-options-panel').contains(e.target) &&
-        !document.getElementById('more-options-btn').contains(e.target)) {
-      document.getElementById('more-options-panel').classList.remove('open');
-    }
-    if (!document.getElementById('history-panel').contains(e.target) &&
-        !document.getElementById('history-btn').contains(e.target)) {
-      document.getElementById('history-panel').classList.remove('open');
-    }
-  });
 
   // goAboutBlank() で開いた新ウィンドウのiframeナビゲートを履歴に記録
   window.addEventListener('message', e => {
@@ -1013,6 +1051,7 @@ function renderBookmarkBtn() {
   const bms = getBookmarks();
   const url = tab.displayUrl || tab.url || '';
   const btn = document.getElementById('add-bookmark-btn');
+  if (!btn) return;
   const isBookmarked = bms.some(b => b.url === url);
   btn.style.color = isBookmarked ? '#f0c040' : '';
 }
