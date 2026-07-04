@@ -40,6 +40,24 @@
 }
 </style>
 
+<!-- iPad Chrome風トップタブストリップ（タブレット表示用） -->
+<div id="tablet-top-strip" aria-hidden="true">
+  <div class="tablet-status-row">
+    <span>06:56&nbsp;&nbsp;Wed 21 Aug</span>
+    <span class="tablet-status-right">● ● ●&nbsp;&nbsp;89%</span>
+  </div>
+  <div class="tablet-tab-row">
+    <div class="tablet-fake-tab active">
+      <span class="tab-favicon-dot"></span>
+      <span class="tab-text">WebPro Education - Tech...</span>
+      <span class="tab-close-mark">×</span>
+    </div>
+    <div class="tablet-fake-tab">
+      <span class="tab-text">New Tab</span>
+    </div>
+  </div>
+</div>
+
 <!-- コンテンツエリア -->
 <div id="content-area"></div>
 
@@ -115,6 +133,25 @@
 
 <!-- その他メニュー -->
 <div id="more-options-panel">
+  <div class="mo-quick-row">
+    <button class="mo-quick" onclick="toggleBookmarkPanel();toggleMoreOptions()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      <span>Bookmarks</span>
+    </button>
+    <button class="mo-quick" onclick="toggleHistoryPanel();toggleMoreOptions()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>History</span>
+    </button>
+    <button class="mo-quick" onclick="toggleBookmarkPanel();toggleMoreOptions()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/></svg>
+      <span>Reading list</span>
+    </button>
+    <button class="mo-quick" onclick="goHome();toggleMoreOptions()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M12 4h9"/><path d="M3 7h2"/><path d="M3 12h2"/><path d="M3 17h2"/></svg>
+      <span>What's new</span>
+    </button>
+  </div>
+  <div class="mo-divider"></div>
   <button class="mo-item" onclick="newTab();toggleMoreOptions()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     新しいタブ
