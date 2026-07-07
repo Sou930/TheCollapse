@@ -273,44 +273,62 @@ function newTab() {
 }
 
 function renderTabs() {
-  // タブ一覧機能は削除済み。互換のためカウントバッジがあれば更新するだけ。
+  // タブカウントバッジを更新
   const badge = document.getElementById('tab-count-badge');
   if (badge) badge.textContent = tabs.length;
+  // タブモーダルリストも更新（開いていれば）
+  const modal = document.getElementById('tabs-modal');
+  if (modal && modal.classList.contains('open')) {
+    renderTabsModal();
+  }
 }
 
-// ======= タブ一覧機能は削除済み（互換用の空スタブ）=======
-function renderTabsModal() {}
-function selectTabFromModal(id) { setActiveTab(id); }
-function openTabsModal() {}
-function closeTabsModal() {}
-function closeTabsModalOutside(e) {}
+function renderTabsModal() {
+  const list = document.getElementById('tabs-modal-list');
+  if (!list) return;
+  list.innerHTML = tabs.map(tab => {
+    const isActive = tab.id === activeTabId;
+    const faviconHtml = tab.favicon
+      ? `<img class="tab-card-favicon" src="${escHtml(tab.favicon)}" onerror="this.style.display='none'">`
+      : `<svg class="tab-card-favicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#9aa0a6"><circle cx="12" cy="12" r="10"/></svg>`;
+    return `
+      <div class="tab-card${isActive ? ' active-card' : ''}" onclick="selectTabFromModal(${tab.id})">
+        <div class="tab-card-active-dot"></div>
+        <div class="tab-card-thumb">
+          <div class="tab-card-thumb-icon">
+            ${tab.favicon ? `<img src="${escHtml(tab.favicon)}" style="width:28px;height:28px;object-fit:contain;border-radius:6px;opacity:0.5;">` : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#9aa0a6"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`}
+          </div>
+        </div>
+        <div class="tab-card-info">
+          ${faviconHtml}
+          <span class="tab-card-title">${escHtml(tab.title || 'New Tab')}</span>
+          <button class="tab-card-close" onclick="closeTab(${tab.id}, event)" title="閉じる">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+  // タイトルも更新
+  const title = document.getElementById('tabs-modal-title');
+  if (title) title.textContent = `タブ (${tabs.length})`;
+}
 
-// ======= 共有（Safari 風の共有ボタン）=======
-async function shareCurrentPage() {
-  const tab = tabs.find(t => t.id === activeTabId);
-  const url = (tab && tab.url) ? tab.url : '';
-  const title = (tab && tab.title) ? tab.title : document.title;
-  if (!url) {
-    if (typeof log === 'function') log('共有できるURLがありません', 'warn');
-    return;
-  }
-  // Web Share API が使えれば OS のシェアシートを開く
-  if (navigator.share) {
-    try {
-      await navigator.share({ title, url });
-      return;
-    } catch (e) {
-      // ユーザーがキャンセルした場合などはフォールバックしない
-      if (e && e.name === 'AbortError') return;
-    }
-  }
-  // フォールバック：クリップボードへコピー
-  try {
-    await navigator.clipboard.writeText(url);
-    if (typeof log === 'function') log('URLをコピーしました: ' + url, 'ok');
-  } catch {
-    if (typeof log === 'function') log('URLのコピーに失敗しました', 'err');
-  }
+function selectTabFromModal(id) {
+  setActiveTab(id);
+  closeTabsModal();
+}
+
+function openTabsModal() {
+  renderTabsModal();
+  document.getElementById('tabs-modal').classList.add('open');
+}
+
+function closeTabsModal() {
+  document.getElementById('tabs-modal').classList.remove('open');
+}
+
+function closeTabsModalOutside(e) {
+  if (e.target === document.getElementById('tabs-modal')) closeTabsModal();
 }
 
 function focusAddressInput() {
