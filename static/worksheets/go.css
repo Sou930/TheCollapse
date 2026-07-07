@@ -121,68 +121,64 @@ html, body {
 }
 #new-tab-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--muted); }
 
-/* ======= Bottom Navigation Bar (Mobile Chrome style) ======= */
+/* ======= Navigation Bar (Safari light style / single row) ======= */
 #bottom-nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   height: calc(var(--bottom-bar-h) + var(--safe-bottom));
+  padding: 0 6px;
   padding-bottom: var(--safe-bottom);
-  background: var(--surface);
-  border-top: 1px solid var(--border);
+  background: #ffffff;
+  border-top: 1px solid #e2e4ea;
   display: flex;
   align-items: center;
   z-index: 100;
-  gap: 0;
+  gap: 2px;
 }
 body.ui-hidden #bottom-nav { display: none; }
 
-/* アドレスバー（中央・幅広） */
+/* アドレスバー（中央・ピル型） */
 #address-bar-center {
   flex: 1;
-  margin: 0 8px;
-  height: 38px;
+  margin: 0 6px;
+  height: 40px;
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 0 12px;
+  background: #eef0f3;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  padding: 0 16px;
   cursor: text;
-  transition: border-color 0.12s, background 0.12s;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
 }
 #address-bar-center:focus-within {
-  border-color: var(--accent);
-  background: var(--bg);
-}
-#address-icon-center {
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
+  border-color: #c9cdd6;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(18, 20, 29, 0.10);
 }
 #address-input {
   flex: 1;
   background: transparent;
   border: none;
   outline: none;
-  color: var(--text);
-  font-size: 14px;
+  color: #1c1c1e;
+  font-size: 15px;
   font-family: var(--font);
   min-width: 0;
   text-align: center;
 }
-#address-input::placeholder { color: var(--muted); }
+#address-input::placeholder { color: #8a8f98; }
 #address-input:focus { text-align: left; }
 
-/* 左右ボタン */
+/* ナビゲーションボタン（Safari 風・薄いグレーアイコン） */
 .bottom-nav-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: #3a3a3c;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -191,27 +187,10 @@ body.ui-hidden #bottom-nav { display: none; }
   transition: background 0.12s, color 0.12s;
   position: relative;
 }
-.bottom-nav-btn:hover { background: var(--surface2); color: var(--text); }
-.bottom-nav-btn:disabled { opacity: 0.3; cursor: default; }
-.bottom-nav-btn:disabled:hover { background: transparent; }
-
-/* タブカウントバッジ */
-#tab-count-badge {
-  position: absolute;
-  top: 6px; right: 6px;
-  min-width: 16px; height: 16px;
-  background: transparent;
-  border: 1.5px solid var(--muted);
-  border-radius: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  padding: 0 2px;
-}
+.bottom-nav-btn:hover { background: rgba(60, 60, 67, 0.08); color: #1c1c1e; }
+.bottom-nav-btn:active { background: rgba(60, 60, 67, 0.14); }
+.bottom-nav-btn:disabled { color: #c7c7cc; cursor: default; }
+.bottom-nav-btn:disabled:hover { background: transparent; color: #c7c7cc; }
 
 /* ======= Address Bar (旧・非表示) ======= */
 #nav-bar {
@@ -1041,123 +1020,39 @@ body.ui-hidden #content-area {
     background: #12141d;
   }
 
-  #tablet-top-strip {
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 130;
-    background: #141925;
-    border-bottom: 1px solid #242a39;
-    padding: 6px 14px 8px;
-  }
-
-  .tablet-status-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    color: #d6dbef;
-    font-size: 11px;
-    font-weight: 500;
-    opacity: 0.9;
-    margin-bottom: 6px;
-    letter-spacing: 0.02em;
-  }
-
-  .tablet-status-right {
-    font-weight: 600;
-  }
-
-  .tablet-tab-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    overflow: hidden;
-  }
-
-  .tablet-fake-tab {
-    min-width: 170px;
-    max-width: 280px;
-    height: 32px;
-    border-radius: 11px 11px 0 0;
-    padding: 0 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #b6bfd8;
-    background: #20283a;
-    border: 1px solid #2d3447;
-    border-bottom: none;
-    font-size: 12px;
-  }
-
-  .tablet-fake-tab.active {
-    background: #f7f8fc;
-    color: #1f2430;
-  }
-
-  .tab-favicon-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #eb5d57;
-    flex-shrink: 0;
-  }
-
-  .tab-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-
-  .tab-close-mark {
-    font-size: 14px;
-    line-height: 1;
-    opacity: 0.7;
-  }
-
   #bottom-nav {
-    top: 57px;
+    top: 0;
     bottom: auto;
     height: calc(var(--bottom-bar-h) + var(--safe-bottom));
     border-top: none;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-    padding: 0 10px;
-    gap: 6px;
+    border-bottom: 1px solid #e2e4ea;
+    background: #ffffff;
+    padding: 0 12px;
+    gap: 4px;
     z-index: 120;
   }
 
   #address-bar-center {
     max-width: 720px;
     margin: 0 auto;
-    height: 38px;
-    border-radius: 19px;
-    background: #ffffff;
-    border-color: #d5daea;
-    box-shadow: 0 1px 0 rgba(18, 20, 29, 0.06);
+    height: 40px;
+    border-radius: 22px;
   }
 
   #address-input {
-    text-align: left;
-    font-size: 13px;
+    text-align: center;
+    font-size: 14px;
   }
+  #address-input:focus { text-align: left; }
 
   .bottom-nav-btn {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     border-radius: 10px;
   }
 
-  #tab-count-badge {
-    top: 2px;
-    right: 2px;
-  }
-
   #content-area {
-    top: calc(57px + var(--bottom-bar-h) + var(--safe-bottom));
+    top: calc(var(--bottom-bar-h) + var(--safe-bottom));
     bottom: 0;
     background: #eef1f8;
   }
@@ -1317,14 +1212,6 @@ body.ui-hidden #content-area {
   #zoom-level-display {
     color: #46536e;
   }
-
-  body.ui-hidden #tablet-top-strip {
-    display: none;
-  }
-}
-
-#tablet-top-strip {
-  display: none;
 }
 
 .mo-quick-row {
