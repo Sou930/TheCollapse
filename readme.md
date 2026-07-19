@@ -1,9 +1,5 @@
 # TheCollapse
 
-JavaScript / HTML / CSS · Node.js · Docker
-
----
-
 ## 概要
 
 **TheCollapse** は、プロキシブラウザ・履歴管理・アカウント機能を備えた Web アプリケーションです。  
