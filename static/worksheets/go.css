@@ -259,14 +259,14 @@ body.ui-hidden #tab-strip { display: none; }
   position: fixed;
   bottom: 0; left: 0; right: 0;
   height: calc(var(--bottom-bar-h) + var(--safe-bottom));
-  padding: 0 6px;
+  padding: 0 4px;
   padding-bottom: var(--safe-bottom);
   background: var(--nav-bg);
   border-top: 1px solid var(--nav-border);
   display: flex;
   align-items: center;
   z-index: 100;
-  gap: 2px;
+  gap: 1px;
 }
 body.ui-hidden #bottom-nav { display: none; }
 
@@ -306,9 +306,9 @@ body.ui-hidden #bottom-nav { display: none; }
 
 /* ナビゲーションボタン（テーマ対応） */
 .bottom-nav-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   color: var(--nav-btn-color);
@@ -1147,13 +1147,13 @@ body.ui-hidden #content-area {
   }
 
   #tab-strip {
-    top: calc(var(--bottom-bar-h) + var(--safe-bottom));
-    border-top: 1px solid var(--ts-border);
+    top: 0;
+    border-top: none;
     border-bottom: 1px solid var(--ts-border);
   }
 
   #bottom-nav {
-    top: 0;
+    top: var(--tab-strip-h);
     bottom: auto;
     height: calc(var(--bottom-bar-h) + var(--safe-bottom));
     border-top: none;
@@ -1165,7 +1165,7 @@ body.ui-hidden #content-area {
   }
 
   #address-bar-center {
-    max-width: 720px;
+    max-width: 864px;
     margin: 0 auto;
     height: 40px;
     border-radius: 22px;
