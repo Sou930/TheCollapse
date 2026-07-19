@@ -9,6 +9,16 @@
 <script src="/worksheets/uv/uv.bundle.js" defer></script>
 <script src="/worksheets/uv/uv.config.js" defer></script>
 <script src="/worksheets/account.js" defer></script>
+<!-- テーマ初期化（FOUC防止のためdeferなし） -->
+<script>
+(function(){
+  var t = localStorage.getItem('go_theme') || 'dark';
+  if (t === 'system') {
+    t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 </head>
 <body>
 
@@ -42,6 +52,14 @@
 
 <!-- コンテンツエリア -->
 <div id="content-area"></div>
+
+<!-- ======= タブストリップ（上部）======= -->
+<div id="tab-strip">
+  <div id="tab-strip-list"></div>
+  <button id="tab-strip-new-btn" onclick="newTab()" title="新しいタブ">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+</div>
 
 <!-- ======= ナビゲーションバー（Safari 風・1列）======= -->
 <div id="bottom-nav">
