@@ -45,6 +45,11 @@ function _withTimeout(promise, ms = 8000, label = 'operation') {
 
 // ======= 初期化 =======
 window.addEventListener('DOMContentLoaded', async () => {
+  // テーマ適用（HTMLの inline scriptでも行うが、DOMContentLoaded後も再適用）
+  _applyTheme(getGoTheme());
+  // タブ偽装を最初に適用
+  applyGoCloak();
+
   _showLoading('読み込み中...');
 
   try {
@@ -273,9 +278,39 @@ function newTab() {
 }
 
 function renderTabs() {
-  // タブ一覧機能は削除済み。互換のためカウントバッジがあれば更新するだけ。
+  // タブカウントバッジ（互換用）
   const badge = document.getElementById('tab-count-badge');
   if (badge) badge.textContent = tabs.length;
+
+  // タブストリップ（上部タブバー）を更新
+  const stripList = document.getElementById('tab-strip-list');
+  if (!stripList) return;
+  stripList.innerHTML = '';
+  tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'strip-tab' + (tab.id === activeTabId ? ' active' : '');
+    el.dataset.id = tab.id;
+    el.title = tab.title || 'New Tab';
+    el.innerHTML = `
+      ${tab.favicon
+        ? `<img class="strip-tab-favicon" src="${escHtml(tab.favicon)}" onerror="this.style.display='none'">`
+        : `<svg class="strip-tab-favicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;flex-shrink:0"><circle cx="12" cy="12" r="10"/></svg>`
+      }
+      <span class="strip-tab-title">${escHtml(tab.title || (tab.isNew ? 'New Tab' : 'Loading…'))}</span>
+      <button class="strip-tab-close" title="閉じる" onclick="closeTab(${tab.id},event)">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+    el.addEventListener('click', ev => {
+      if (ev.target.closest('.strip-tab-close')) return;
+      setActiveTab(tab.id);
+    });
+    stripList.appendChild(el);
+  });
+
+  // アクティブタブが見えるようにスクロール
+  const activeEl = stripList.querySelector('.strip-tab.active');
+  if (activeEl) activeEl.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
 }
 
 // ======= タブ一覧機能は削除済み（互換用の空スタブ）=======
@@ -1872,6 +1907,68 @@ window.addEventListener('DOMContentLoaded', () => {
     if (zp && !zp.contains(e.target)) zp.classList.remove('open');
   });
 });
+
+// ======= テーマ管理（ダークモード / ライトモード / システム同期）=======
+const GO_THEME_KEY = 'go_theme';
+
+function _applyTheme(mode) {
+  // mode: 'dark' | 'light' | 'system'
+  let resolved = mode;
+  if (mode === 'system') {
+    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', resolved);
+}
+
+function setGoTheme(mode) {
+  // 'dark' | 'light' | 'system'
+  localStorage.setItem(GO_THEME_KEY, mode);
+  _applyTheme(mode);
+}
+
+function getGoTheme() {
+  return localStorage.getItem(GO_THEME_KEY) || 'dark';
+}
+
+// システムテーマ変更を監視
+try {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (getGoTheme() === 'system') _applyTheme('system');
+  });
+} catch {}
+
+// ======= タブ偽装（クローク）起動時適用 =======
+function applyGoCloak() {
+  try {
+    // 新形式（settings.html v2）: localStorage.getItem('sitename') / 'faviconurl'
+    const sitename = localStorage.getItem('sitename') || '';
+    const faviconurl = localStorage.getItem('faviconurl') || '';
+    // 旧形式フォールバック: 'site-settings' JSON
+    let oldSitename = '', oldFavicon = '';
+    try {
+      const oldSettings = JSON.parse(localStorage.getItem('site-settings') || '{}');
+      oldSitename = oldSettings.siteName || '';
+      oldFavicon = oldSettings.favicon || '';
+    } catch {}
+
+    const finalName = sitename || oldSitename;
+    const finalFavicon = faviconurl || oldFavicon;
+
+    if (finalName) document.title = finalName;
+
+    if (finalFavicon) {
+      let link = document.querySelector("link[rel='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = finalFavicon;
+    }
+  } catch (e) {
+    try { console.warn('[go] applyCloak error:', e && e.message); } catch {}
+  }
+}
 
 // ======= go.html アカウントUI =======
 function renderGoAccountUI() {
